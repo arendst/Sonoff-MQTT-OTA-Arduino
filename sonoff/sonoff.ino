@@ -388,6 +388,10 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
         snprintf_P(svalue, sizeof(svalue), PSTR("1 to upgrade"));
       }
     }
+    else if (!strcmp(type,"SAVEDATA")) {
+      snprintf_P(svalue, sizeof(svalue), PSTR("Save config to eeprom"));
+      CFG_Save();
+    }
     else if (!strcmp(type,"OTAURL")) {
       if ((data_len > 0) && (data_len < sizeof(sysCfg.otaUrl)))
         strlcpy(sysCfg.otaUrl, (payload == 1) ? OTA_URL : dataBuf, sizeof(sysCfg.otaUrl));
@@ -817,7 +821,6 @@ void stateloop()
     }
     break;
   case (STATES/10)*4:
-    CFG_Save();
     if (restartflag) {
       if (restartflag == 11) {
         CFG_Default();
