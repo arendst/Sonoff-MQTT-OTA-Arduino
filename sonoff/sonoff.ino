@@ -52,6 +52,7 @@ enum wifi_t  {WIFI_STATUS, WIFI_SMARTCONFIG, WIFI_MANAGER, WIFI_WPSCONFIG};
 #define USE_TICKER                          // Enable interrupts to keep RTC synced during subscription flooding
 //#define USE_SPIFFS                          // Switch persistent configuration from flash to spiffs (+24k code, +0.6k mem)
 #define USE_WEBSERVER                       // Enable web server and wifi manager (+37k code, +2k mem)
+#define USE_RETAIN                          // Enable publish retained messages to MQTT broker
 
 /*********************************************************************************************\
  * No more user configurable items below
@@ -99,6 +100,28 @@ enum butt_t {PRESSED, NOT_PRESSED};
 
 extern "C" uint32_t _SPIFFS_start;
 extern "C" uint32_t _SPIFFS_end;
+
+#define MAX_BUTTON_COMMANDS 8
+
+const char commands[MAX_BUTTON_COMMANDS][14] PROGMEM = {
+  {"reset 1"},        // Hold button for more than 4 seconds
+  {"LIGHT 2"},      // Press button once
+  {"1/light 2"},      // Press button twice
+  {"wificonfig 1"},   // Press button three times
+  {"wificonfig 2"},   // Press button four times
+  {"wificonfig 3"},   // Press button five times
+  {"restart 1"},      // Press button six times
+  {"upgrade 1"}};     // Press button seven times
+
+const char commands1[MAX_BUTTON_COMMANDS][14] PROGMEM = {
+  {"reset 1"},        // Hold button for more than 4 seconds
+  {"1/light 2"},      // Press button once
+  {"2/light 2"},      // Press button twice
+  {"wificonfig 1"},   // Press button three times
+  {"wificonfig 2"},   // Press button four times
+  {"wificonfig 3"},   // Press button five times
+  {"restart 1"},      // Press button six times
+  {"upgrade 1"}};     // Press button seven times
 
 struct SYSCFG {
   unsigned long cfg_holder;
@@ -224,7 +247,7 @@ void CFG_Default()
   strlcpy(sysCfg.mqtt_pwd, MQTT_PASS, sizeof(sysCfg.mqtt_pwd));
   strlcpy(sysCfg.mqtt_grptopic, MQTT_GRPTOPIC, sizeof(sysCfg.mqtt_grptopic));
   strlcpy(sysCfg.mqtt_topic, MQTT_TOPIC, sizeof(sysCfg.mqtt_topic));
-  strlcpy(sysCfg.mqtt_topic2, "0", sizeof(sysCfg.mqtt_topic2));
+  strlcpy(sysCfg.mqtt_topic2, MQTT_TOPIC, sizeof(sysCfg.mqtt_topic2));  // "0" - disable button MQTT topic
   strlcpy(sysCfg.mqtt_subtopic, MQTT_SUBTOPIC, sizeof(sysCfg.mqtt_subtopic));
   sysCfg.tele_period = TELE_PERIOD;
   sysCfg.timezone = APP_TIMEZONE;
@@ -252,6 +275,11 @@ void mqtt_connected()
 {
   char stopic[TOPSZ], svalue[MESSZ];
 
+  #ifdef USE_RETAIN
+    snprintf_P(stopic, sizeof(stopic), commands[1]);
+    snprintf_P(svalue, sizeof(svalue), PSTR("%s %d"), strtok(stopic, " "), sysCfg.power);
+  #endif  // USE_RETAIN  
+  
   snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/#"), SUB_PREFIX, sysCfg.mqtt_topic);
   mqttClient.subscribe(stopic);
   mqttClient.loop();  // Solve LmacRxBlk:1 messages
@@ -284,6 +312,7 @@ void mqtt_connected()
       snprintf_P(svalue, sizeof(svalue), PSTR("No persistent config. Please reflash with at least 16K SPIFFS"));
       mqtt_publish(stopic, svalue);
     }
+
   }
   mqttflag = 0;
 }
@@ -291,6 +320,7 @@ void mqtt_connected()
 void mqtt_reconnect()
 {
   char stopic[TOPSZ], log[LOGSZ];
+  
 
   mqttcounter = MQTT_RETRY_SECS;
   addLog_P(LOG_LEVEL_INFO, PSTR("MQTT: Attempting connection..."));
@@ -700,7 +730,15 @@ void send_button(char *cmnd)
   snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/%s"), SUB_PREFIX, sysCfg.mqtt_topic2, token);
   token = strtok(NULL, "");
   snprintf_P(svalue, sizeof(svalue), PSTR("%s"), (token == NULL) ? "" : token);
+  
+  #ifdef USE_RETAIN
+  if (!strcmp(token,"0")) { snprintf_P(svalue, sizeof(svalue), PSTR("Off")); }
+  else if (!strcmp(token,"1")) { snprintf_P(svalue, sizeof(svalue), PSTR("On")); }
+  else if (!strcmp(token,"2")) { strlcpy(svalue, !(sysCfg.power) ? "On" : "Off", sizeof(svalue));}
+  mqttClient.publish(stopic, svalue, true);
+#else
   mqtt_publish(stopic, svalue);
+  #endif  // USE_RETAIN
 }
 
 void do_cmnd(char *cmnd)
@@ -790,28 +828,6 @@ void every_second()
     mqtt_publish(stopic, svalue);
   }
 }
-
-#define MAX_BUTTON_COMMANDS 8
-
-const char commands[MAX_BUTTON_COMMANDS][14] PROGMEM = {
-  {"reset 1"},        // Hold button for more than 4 seconds
-  {"1/light 2"},      // Press button once
-  {"1/light 2"},      // Press button twice
-  {"wificonfig 1"},   // Press button three times
-  {"wificonfig 2"},   // Press button four times
-  {"wificonfig 3"},   // Press button five times
-  {"restart 1"},      // Press button six times
-  {"upgrade 1"}};     // Press button seven times
-
-const char commands1[MAX_BUTTON_COMMANDS][14] PROGMEM = {
-  {"reset 1"},        // Hold button for more than 4 seconds
-  {"1/light 2"},      // Press button once
-  {"2/light 2"},      // Press button twice
-  {"wificonfig 1"},   // Press button three times
-  {"wificonfig 2"},   // Press button four times
-  {"wificonfig 3"},   // Press button five times
-  {"restart 1"},      // Press button six times
-  {"upgrade 1"}};     // Press button seven times
 
 void stateloop()
 {
