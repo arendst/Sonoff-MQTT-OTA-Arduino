@@ -52,6 +52,7 @@ enum wifi_t  {WIFI_STATUS, WIFI_SMARTCONFIG, WIFI_MANAGER, WIFI_WPSCONFIG};
 #define USE_TICKER                          // Enable interrupts to keep RTC synced during subscription flooding
 //#define USE_SPIFFS                          // Switch persistent configuration from flash to spiffs (+24k code, +0.6k mem)
 #define USE_WEBSERVER                       // Enable web server and wifi manager (+37k code, +2k mem)
+#define USE_DOMOTICZ                        // Enable Domoticz
 
 /*********************************************************************************************\
  * No user configurable items below
@@ -71,8 +72,13 @@ enum wifi_t  {WIFI_STATUS, WIFI_SMARTCONFIG, WIFI_MANAGER, WIFI_WPSCONFIG};
 #define MQTT_RETRY_SECS        10           // Seconds to retry MQTT connection
 
 #define INPUT_BUFFER_SIZE      128          // Max number of characters in serial buffer
+#ifdef USE_DOMOTICZ
+#define TOPSZ                  60           // Max number of characters in topic string
+#define MESSZ                  300          // Max number of characters in message string (Syntax string)
+#else
 #define TOPSZ                  40           // Max number of characters in topic string
 #define MESSZ                  200          // Max number of characters in message string (Syntax string)
+#endif //USE_DOMOTICZ
 #define LOGSZ                  128          // Max number of characters in log string
 
 #define MAX_LOG_LINES          80           // Max number of lines in weblog
@@ -133,6 +139,10 @@ struct SYSCFG {
   char          mqtt_client[33];
   char          mqtt_user[33];
   char          mqtt_pwd[33];
+  char          domoticz_in_topic[33];
+  char          domoticz_out_topic[33];
+  unsigned long domoticz_idx;
+  uint16_t      domoticz_update_timer;
   uint8_t       webserver;
   unsigned long bootcount;
   char          hostname[33];
@@ -197,6 +207,10 @@ String Log[MAX_LOG_LINES];            // Web log buffer
 byte logidx = 0;                      // Index in Web log buffer
 byte Maxdevice = MAX_DEVICE;          // Max number of devices supported
 
+#ifdef USE_DOMOTICZ
+  int domoticz_update_timer = 0;
+#endif //USE_DOMOTICZ
+
 WiFiClient espClient;                 // Wifi Client
 PubSubClient mqttClient(espClient);   // MQTT Client
 WiFiUDP portUDP;                      // UDP Syslog
@@ -249,6 +263,10 @@ void CFG_Default()
   sysCfg.ledstate = APP_LEDSTATE;
   sysCfg.webserver = WEB_SERVER;
   sysCfg.model = 0;
+  strlcpy(sysCfg.domoticz_in_topic, DOMOTICZ_IN_TOPIC, sizeof(sysCfg.domoticz_in_topic));
+  strlcpy(sysCfg.domoticz_out_topic, DOMOTICZ_OUT_TOPIC, sizeof(sysCfg.domoticz_out_topic));
+  sysCfg.domoticz_idx = DOMOTICZ_IDX;
+  sysCfg.domoticz_update_timer = DOMOTICZ_UPDATE_TIMER;
   CFG_Save();
 }
 
@@ -304,6 +322,14 @@ void mqtt_connected()
   snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/#"), SUB_PREFIX, MQTTClient); // Fall back topic
   mqttClient.subscribe(stopic);
   mqttClient.loop();  // Solve LmacRxBlk:1 messages
+#ifdef USE_DOMOTICZ
+  if ((sysCfg.domoticz_idx > 0) && (strlen(sysCfg.domoticz_out_topic) != 0)) {
+    snprintf_P(stopic, sizeof(stopic), PSTR("%s/#"), sysCfg.domoticz_out_topic); // domoticz topic
+    addLog_P(LOG_LEVEL_INFO, PSTR("MQTT: subscribed to Domoticz"));
+    mqttClient.subscribe(stopic);
+    mqttClient.loop();  // Solve LmacRxBlk:1 messages
+  }
+#endif //USE_DOMOTICZ
 
   if (mqttflag) {
     snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/INFO"), PUB_PREFIX, sysCfg.mqtt_topic);
@@ -348,6 +374,38 @@ void mqtt_reconnect()
   }
 }
 
+#ifdef USE_DOMOTICZ
+unsigned long getKeyIntValue(const char *json, const char *key)
+{
+   char *p, *b;
+   int i;
+   // search key
+   p = strstr(json, key);
+   if (!p) {
+      return 0;
+   }
+   // search following separator :
+   b = strchr(p+strlen(key),':');
+   if (!b) {
+      return 0;
+   }
+   // Only the following chars are allowed between key and separator :
+   for(i = b-json+strlen(key); i < p-json; i++) {
+      switch (json[i]) {
+      case ' ':
+      case '\n':
+      case '\t':
+      case '\r':
+        continue;
+      default:
+        return 0;
+      }
+   }
+   // Convert to integer
+   return atoi(b+1);
+}
+#endif //USE_DOMOTICZ
+
 void mqttDataCb(char* topic, byte* data, unsigned int data_len)
 {
   int i, grpflg = 0, device;
@@ -367,6 +425,31 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
 
   snprintf_P(svalue, sizeof(svalue), PSTR("MQTT: Receive topic %s, data %s"), topicBuf, dataBuf);
   addLog(LOG_LEVEL_DEBUG, svalue);
+
+#ifdef USE_DOMOTICZ
+  if (strncmp(topicBuf, SUB_PREFIX,strlen(SUB_PREFIX)) != 0) {
+    unsigned long idx = 0;
+    int16_t nvalue = 0;
+
+    for(i = 0; i <= data_len; i++) dataBufUc[i] = toupper(dataBuf[i]);
+
+    idx = getKeyIntValue(dataBufUc,"\"IDX\"");
+
+    if (idx > 0 && idx == sysCfg.domoticz_idx) {
+
+      nvalue = getKeyIntValue(dataBufUc,"\"NVALUE\"");
+
+      if (nvalue == 0 || nvalue == 1) {
+        sysCfg.power = nvalue;
+        digitalWrite(REL_PIN, sysCfg.power);
+        snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/%s"), PUB_PREFIX, sysCfg.mqtt_topic, "DOMOTICZ");
+        snprintf_P(svalue, sizeof(svalue), PSTR("idx=%d, nvalue=%d"),idx,nvalue);
+        mqtt_publish(stopic, svalue);
+      }
+    }
+    return;
+  }
+#endif //USE_DOMOTICZ
 
   i = 0;
   for (str = strtok_r(topicBuf, "/", &p); str && i < 4; str = strtok_r(NULL, "/", &p)) {
@@ -620,6 +703,37 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
       }
       snprintf_P(svalue, sizeof(svalue), PSTR("%s"), sysCfg.mqtt_pwd);
     }
+
+#ifdef USE_DOMOTICZ
+    else if (!strcmp(type,"DOMOTICZINTOPIC")) {
+      if ((data_len > 0) && (data_len < sizeof(sysCfg.domoticz_in_topic))) {
+        strlcpy(sysCfg.domoticz_in_topic, (payload == 1) ? DOMOTICZ_IN_TOPIC : dataBuf, sizeof(sysCfg.domoticz_in_topic));
+        restartflag = 2;
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("%s"), sysCfg.domoticz_in_topic);
+    }
+    else if (!strcmp(type,"DOMOTICZOUTTOPIC")) {
+      if ((data_len > 0) && (data_len < sizeof(sysCfg.domoticz_out_topic))) {
+        strlcpy(sysCfg.domoticz_out_topic, (payload == 1) ? DOMOTICZ_OUT_TOPIC : dataBuf, sizeof(sysCfg.domoticz_out_topic));
+        restartflag = 2;
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("%s"), sysCfg.domoticz_out_topic);
+    }
+    else if (!strcmp(type,"DOMOTICZIDX")) {
+      if ((data_len > 0) && (payload >= 0)) {
+        sysCfg.domoticz_idx = payload;
+        restartflag = 2;
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("%d"), sysCfg.domoticz_idx);
+    }
+    else if (!strcmp(type,"DOMOTICZUPDATETIMER")) {
+      if ((data_len > 0) && (payload >= 0)) {
+        sysCfg.domoticz_update_timer = payload;
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("%d"), sysCfg.domoticz_update_timer);
+    }
+#endif //USE_DOMOTICZ
+    
     else if (!strcmp(type,"TELEPERIOD")) {
       if ((data_len > 0) && (payload >= 0) && (payload < 3601)) {
         sysCfg.tele_period = (payload == 1) ? TELE_PERIOD : payload;
@@ -722,6 +836,11 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
         setRelay(power);
       }
       strlcpy(svalue, (power & mask) ? "On" : "Off", sizeof(svalue));
+
+#ifdef USE_DOMOTICZ
+      domoticz_update_timer = 1;
+#endif //USE_DOMOTICZ
+      
     }
     else if (!strcmp(type,"LEDSTATE")) {
       if ((data_len > 0) && (payload >= 0) && (payload <= 1)) {
@@ -736,9 +855,17 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     blinks = 1;
     snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/SYNTAX"), PUB_PREFIX, sysCfg.mqtt_topic);
 #ifdef USE_WEBSERVER
-    snprintf_P(svalue, sizeof(svalue), PSTR("Status, SaveData, SaveSate, Upgrade, Otaurl, Restart, Reset, WifiConfig, Seriallog, Weblog, Syslog, LogHost, LogPort, SSId, Password%s, Webserver"), (!grpflg) ? ", Hostname" : "");
+    snprintf_P(svalue, sizeof(svalue), PSTR("Status, SaveData, SaveSate, Upgrade, Otaurl, Restart, Reset, WifiConfig, Seriallog, Weblog, Syslog, LogHost, LogPort, SSId, Password%s, Webserver"), (!grpflg) ? ", Hostname" : "" 
+#ifdef USE_DOMOTICZ
+      ", DomoticzInTopic, DomoticzOutTopic, DomoticzIdx, DomoticzUpdateTimer"
+#endif //USE_DOMOTICZ
+);
 #else      
-    snprintf_P(svalue, sizeof(svalue), PSTR("Status, SaveData, SaveSate, Upgrade, Otaurl, Restart, Reset, WifiConfig, Seriallog, Syslog, LogHost, LogPort, SSId, Password%s"), (!grpflg) ? ", Hostname" : "");
+    snprintf_P(svalue, sizeof(svalue), PSTR("Status, SaveData, SaveSate, Upgrade, Otaurl, Restart, Reset, WifiConfig, Seriallog, Syslog, LogHost, LogPort, SSId, Password%s"), (!grpflg) ? ", Hostname" : "" 
+    #ifdef USE_DOMOTICZ
+      ", DomoticzInTopic, DomoticzOutTopic, DomoticzIdx, DomoticzUpdateTimer"
+#endif //USE_DOMOTICZ
+);
 #endif      
     mqtt_publish(stopic, svalue);
     snprintf_P(svalue, sizeof(svalue), PSTR("MqttHost, MqttPort, MqttUser, MqttPassword%s, GroupTopic, Timezone, Light, Power, Ledstate, TelePeriod"), (!grpflg) ? ", MqttClient, Topic, ButtonTopic, ButtonRetain" : "");
@@ -805,6 +932,23 @@ void every_second()
 {
   char stopic[TOPSZ], svalue[TOPSZ];
   float t, h;
+
+#ifdef USE_DOMOTICZ
+  if (((sysCfg.domoticz_update_timer) || (domoticz_update_timer)) &&
+     (sysCfg.domoticz_idx > 0) && (strlen(sysCfg.domoticz_in_topic) != 0)) {
+    if (domoticz_update_timer <= 1) {
+      domoticz_update_timer = sysCfg.domoticz_update_timer;
+      addLog_P(LOG_LEVEL_INFO, PSTR("DMQT: Sending status update"));
+
+      strlcpy(stopic, sysCfg.domoticz_in_topic, sizeof(stopic));
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\n   \"idx\": %d,\n   \"nvalue\": %d,\n   \"svalue\": \"\"\n}"),
+        sysCfg.domoticz_idx,  (sysCfg.power == 0) ? 0 : 1);
+      mqtt_publish(stopic, svalue);
+    } else {
+      domoticz_update_timer--;
+    }
+  }
+#endif \\USE_DOMOTICZ  
     
   if (sysCfg.tele_period) {
     tele_period++;
