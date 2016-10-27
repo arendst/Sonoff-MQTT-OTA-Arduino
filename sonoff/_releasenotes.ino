@@ -1,4 +1,25 @@
-/* 2.0.4 20161009
+/* 2.0.6 20161024
+ * Add Sonoff Pow power factor
+ * Initial support for up to four relays using iTEAD PSB (4Channel)
+ *   - Currently only supports one button (All buttons behave the same)
+ *   - Use command MODEL 4 to select four relay option
+ *     (After first power on it will support 2 relays like Sonoff Dual)
+ * Fix ledstate
+ * Add command Status 9 to display Sonoff Pow thresholds
+ * Add commands PowerLow, PowerHigh, VoltageLow, VoltageHigh, CurrentLow and CurrentHigh for use
+ *   with Sonoff Pow thresholds
+ * 
+ * 2.0.5 20161018
+ * Add updates to user_config.h - moved SEND_TELEMETRY_DS18B20 and SEND_TELEMETRY_DHT to module area. 
+ *   As Sonoff TH10/16 does not have the logic installed for GPIO04 You'll have to select ONE of both
+ * Add Sonoff Pow support (experimental until Pow tested)
+ * Add command Status 8 to display Sonoff Pow energy values
+ * Add command MqttUnits On|Off to add units to values
+ * Change web main page header character size
+ * Change On/Off to ON/OFF status messages to satisfy openHAB
+ * Change TEMP to TEMPERATURE and HUM to HUMIDITY
+ * 
+ * 2.0.4 20161009
  * Add MQTT_BUTTON_RETAIN, SAVE_DATA and SAVE_STATE defines to user_config.h
  * Update ButtonRetain to remove retained message(s) from broker when turned off
  * Add Retain for second relay on Sonoff Dual

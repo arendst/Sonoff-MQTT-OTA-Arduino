@@ -1,3 +1,30 @@
+/*
+These routines provide support to my various ESP8266 based projects.
+
+Copyright (c) 2016 Theo Arends.  All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+- Redistributions of source code must retain the above copyright notice,
+  this list of conditions and the following disclaimer.
+- Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+*/
+
 /*********************************************************************************************\
  * Config - Flash or Spiffs
 \*********************************************************************************************/
@@ -39,7 +66,7 @@ void CFG_Save()
         uint8_t *bytes = (uint8_t*)&sysCfg;
         for (int i = 0; i < sizeof(SYSCFG); i++) f.write(bytes[i]);
         f.close();
-        snprintf_P(log, sizeof(log), PSTR("Config: Saved configuration to spiffs count %d"), sysCfg.saveFlag);
+        snprintf_P(log, sizeof(log), PSTR("Config: Saved configuration (%d bytes) to spiffs count %d"), sizeof(SYSCFG), sysCfg.saveFlag);
         addLog(LOG_LEVEL_DEBUG, log);
       } else {
         addLog_P(LOG_LEVEL_ERROR, PSTR("Config: ERROR - Saving configuration failed"));
@@ -55,7 +82,7 @@ void CFG_Save()
       spi_flash_erase_sector(CFG_LOCATION + (sysCfg.saveFlag &1));
       spi_flash_write((CFG_LOCATION + (sysCfg.saveFlag &1)) * SPI_FLASH_SEC_SIZE, (uint32*)&sysCfg, sizeof(SYSCFG));
       interrupts();
-      snprintf_P(log, sizeof(log), PSTR("Config: Saved configuration to flash at %X and count %d"), CFG_LOCATION + (sysCfg.saveFlag &1), sysCfg.saveFlag);
+      snprintf_P(log, sizeof(log), PSTR("Config: Saved configuration (%d bytes) to flash at %X and count %d"), sizeof(SYSCFG), CFG_LOCATION + (sysCfg.saveFlag &1), sysCfg.saveFlag);
       addLog(LOG_LEVEL_DEBUG, log);
     }
     _cfgHash = getHash();
@@ -403,7 +430,7 @@ extern "C" {
 static const uint8_t monthDays[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 }; // API starts months from 1, this array starts from 0
 static const char monthNames[37] = { "JanFebMrtAprMayJunJulAugSepOctNovDec" };
 
-uint32_t utctime = 0, loctime = 0, dsttime = 0, stdtime = 0, ntptime = 0;
+uint32_t utctime = 0, loctime = 0, dsttime = 0, stdtime = 0, ntptime = 0, midnight = 0;
 uint8_t ntpsync = 0;
 
 void breakTime(uint32_t timeInput, TIME_T &tm)
@@ -532,6 +559,16 @@ String rtc_time(int type)
   return String(stime);
 }
 
+uint32_t rtc_loctime()
+{
+  return loctime;
+}
+
+uint32_t rtc_midnight()
+{
+  return midnight;
+}
+
 void rtc_second()
 {
   char log[LOGSZ];
@@ -576,6 +613,12 @@ void rtc_second()
     }
   }
   breakTime(loctime, rtcTime);
+  if ((!midnight || (!rtcTime.Hour && !rtcTime.Minute && !rtcTime.Second)) && (loctime > 1451602800)) {
+    midnight = loctime;
+  }
+#ifdef USE_POWERMONITOR
+  hlw_second();
+#endif
   rtcTime.Year += 1970;
 }
 
@@ -595,7 +638,7 @@ void rtc_init()
 
 #ifdef SEND_TELEMETRY_DS18B20
 /*********************************************************************************************\
- * DS18B20
+ * DS18B20 - Temperature
  * 
  * Source: Marinus vd Broek https://github.com/ESP8266nu/ESPEasy
 \*********************************************************************************************/
@@ -704,7 +747,7 @@ boolean dsb_readTemp(float &t)
 
 #ifdef SEND_TELEMETRY_DHT
 /*********************************************************************************************\
- * DHT11, DHT21 (AM2301), DHT22 (AM2302, AM2321)
+ * DHT11, DHT21 (AM2301), DHT22 (AM2302, AM2321) - Temperature and Humidy
  * 
  * Reading temperature or humidity takes about 250 milliseconds!
  * Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
