@@ -1,3 +1,6 @@
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+
 /*
 These routines provide support to my various ESP8266 based projects.
 
@@ -24,6 +27,7 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 */
+
 
 #ifdef USE_WEBSERVER
 /*********************************************************************************************\
@@ -99,6 +103,9 @@ const char HTTP_BTN_RSTRT[] PROGMEM =
 const char HTTP_BTN_MENU2[] PROGMEM =
   "<br/><form action='/w0' method='post'><button>Configure WiFi</button></form>"
   "<br/><form action='/mq' method='post'><button>Configure MQTT</button></form>"
+#ifdef USE_DOMOTICZ
+  "<br/><form action='/dm' method='post'><button>Configure Domoticz</button></form>"
+#endif  // USE_DOMOTICZ  
   "<br/><form action='/lg' method='post'><button>Configure logging</button></form>"
   "<br/><form action='/rt' method='post'><button>Reset Configuration</button></form>";
 const char HTTP_BTN_MAIN[] PROGMEM =
@@ -124,6 +131,15 @@ const char HTTP_FORM_MQTT[] PROGMEM =
   "<br/><b>User</b> (" MQTT_USER ")<br/><input id='mu' name='mu' length=32 placeholder='" MQTT_USER "' value='{m4}'><br/>"
   "<br/><b>Password</b> (" MQTT_PASS ")<br/><input id='mp' name='mp' length=32 placeholder='" MQTT_PASS "' value='{m5}'><br/>"
   "<br/><b>Topic</b> (" MQTT_TOPIC ")<br/><input id='mt' name='mt' length=32 placeholder='" MQTT_TOPIC" ' value='{m6}'><br/>";
+#ifdef USE_DOMOTICZ
+const char HTTP_FORM_DOMOTICZ[] PROGMEM =
+  "<fieldset><legend><b>&nbsp;Domoticz parameters&nbsp;</b></legend><form method='post' action='sv'>"
+  "<input id='w' name='w' value='31' hidden><input id='r' name='r' value='1' hidden>"
+  "<br/><b>In topic</b> (" DOMOTICZ_IN_TOPIC ")<br/><input id='it' name='it' length=32 placeholder='" DOMOTICZ_IN_TOPIC" ' value='{d1}'><br/>"
+  "<br/><b>Out topic</b> (" DOMOTICZ_OUT_TOPIC ")<br/><input id='ot' name='ot' length=32 placeholder='" DOMOTICZ_OUT_TOPIC" ' value='{d2}'><br/>"
+  "<br/><b>Idx</b> (" STR(DOMOTICZ_IDX) ")<br/><input id='ix' name='ix' length=32 placeholder='" STR(DOMOTICZ_IDX) " ' value='{d3}'><br/>"
+  "<br/><b>Update timer</b> (" STR(DOMOTICZ_UPDATE_TIMER) ")<br/><input id='ut' name='ut' length=32 placeholder='" STR(DOMOTICZ_UPDATE_TIMER) " ' value='{d4}'><br/>";
+#endif  // USE_DOMOTICZ
 const char HTTP_FORM_LOG[] PROGMEM =
   "<fieldset><legend><b>&nbsp;Logging parameters&nbsp;</b></legend><form method='post' action='sv'>"
   "<input id='w' name='w' value='3' hidden><input id='r' name='r' value='0' hidden>"
@@ -202,6 +218,9 @@ void startWebserver(int type, IPAddress ipweb)
       webServer->on("/w1", handleWifi1);
       webServer->on("/w0", handleWifi0);
       webServer->on("/mq", handleMqtt);
+#ifdef USE_DOMOTICZ
+      webServer->on("/dm", handleDomoticz);
+#endif  // USE_DOMOTICZ
       webServer->on("/lg", handleLog);
       webServer->on("/sv", handleSave);
       webServer->on("/rt", handleReset);
@@ -485,6 +504,25 @@ void handleMqtt()
   showPage(page);
 }
 
+#ifdef USE_DOMOTICZ
+void handleDomoticz()
+{
+  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle Domoticz config"));
+
+  String page = FPSTR(HTTP_HEAD);
+  page.replace("{v}", "Configure Domoticz");
+  page += FPSTR(HTTP_FORM_DOMOTICZ);
+  char str[33];
+  page.replace("{d1}", String(sysCfg.domoticz_in_topic));
+  page.replace("{d2}", String(sysCfg.domoticz_out_topic));
+  page.replace("{d3}", String((int)sysCfg.domoticz_idx));
+  page.replace("{d4}", String((int)sysCfg.domoticz_update_timer));
+  page += FPSTR(HTTP_FORM_END);
+  page += FPSTR(HTTP_BTN_CONF);
+  showPage(page);
+}
+#endif  // USE_DOMOTICZ
+
 void handleLog()
 {
   addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle Log config"));
@@ -552,6 +590,17 @@ void handleSave()
       sysCfg.seriallog_level, sysCfg.weblog_level, sysCfg.syslog_level, sysCfg.syslog_host, sysCfg.syslog_port, sysCfg.tele_period);
     addLog(LOG_LEVEL_INFO, log);
     break;
+#ifdef USE_DOMOTICZ
+  case 31:
+    strlcpy(sysCfg.domoticz_in_topic, (!strlen(webServer->arg("it").c_str())) ? DOMOTICZ_IN_TOPIC : webServer->arg("it").c_str(), sizeof(sysCfg.domoticz_in_topic));
+    strlcpy(sysCfg.domoticz_out_topic, (!strlen(webServer->arg("ot").c_str())) ? DOMOTICZ_OUT_TOPIC : webServer->arg("ot").c_str(), sizeof(sysCfg.domoticz_out_topic));
+    sysCfg.domoticz_idx = (!strlen(webServer->arg("ix").c_str())) ? DOMOTICZ_IDX : atoi(webServer->arg("ix").c_str());
+    sysCfg.domoticz_update_timer = (!strlen(webServer->arg("ut").c_str())) ? DOMOTICZ_UPDATE_TIMER : atoi(webServer->arg("ut").c_str());
+    snprintf_P(log, sizeof(log), PSTR("HTTP: Domoticz in_topic %s, out_topic %s, idx %d, update_timer %d"),
+      sysCfg.domoticz_in_topic, sysCfg.domoticz_out_topic, sysCfg.domoticz_idx, sysCfg.domoticz_update_timer);
+    addLog(LOG_LEVEL_INFO, log);
+    break;
+#endif  // USE_DOMOTICZ    
   }
 
   restart = (!strlen(webServer->arg("r").c_str())) ? 1 : atoi(webServer->arg("r").c_str());

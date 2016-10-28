@@ -18,8 +18,8 @@
 #define SAVE_STATE             1            // Save changed power state to Flash (0 = disable, 1 = enable)
 
 // Wifi
-#define STA_SSID               "indebuurt3"      // Wifi SSID
-#define STA_PASS               "VnsqrtnrsddbrN"  // Wifi password
+#define STA_SSID               "test"      // Wifi SSID
+#define STA_PASS               "test"  // Wifi password
 #define WIFI_HOSTNAME          "%s-%04d"         // Expands to <MQTT_TOPIC>-<last 4 decimal chars of MAC address>
 #define WIFI_CONFIG_TOOL       WIFI_WPSCONFIG    // Default tool if wifi fails to connect (WIFI_SMARTCONFIG, WIFI_MANAGER or WIFI_WPSCONFIG)
 
@@ -58,6 +58,12 @@
 #define SEND_TELEMETRY_UPTIME               // Enable sending uptime telemetry (if disabled will still send hourly message)
 #define SEND_TELEMETRY_RSSI                 // Enable sending wifi RSSI telemetry
 #define SEND_TELEMETRY_POWER                // Enable sending power telemetry
+
+// Domoticz
+#define DOMOTICZ_IN_TOPIC      "domoticz/in"
+#define DOMOTICZ_OUT_TOPIC     "domoticz/out"
+#define DOMOTICZ_IDX           0
+#define DOMOTICZ_UPDATE_TIMER  0
 
 // HTTP
 #define WEB_SERVER             2            // Web server (0 = Off, 1 = Start as User, 2 = Start as Admin)
