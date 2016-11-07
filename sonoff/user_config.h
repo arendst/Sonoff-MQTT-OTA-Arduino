@@ -87,6 +87,14 @@
 #define APP_LEDSTATE           1            // Do not show power state (1 = Show power state)
 
 /*********************************************************************************************\
+ * Enable feature by removing leading // or disable feature by adding leading //
+\*********************************************************************************************/
+
+//#define USE_SPIFFS                          // Switch persistent configuration from flash to spiffs (+24k code, +0.6k mem)
+#define USE_WEBSERVER                       // Enable web server and wifi manager (+37k code, +2k mem)
+#define USE_DOMOTICZ                        // Enable Domoticz (+3k code, +0.2k mem)
+
+/*********************************************************************************************\
  * Sonoff specific paremeters
 \*********************************************************************************************/
 
