@@ -308,6 +308,10 @@ void handleRoot()
     return;
   }
 
+/*  if(!webServer->authenticate("sonoff", "sonoff"))
+    return webServer->requestAuthentication();
+*/
+  
   if (_httpflag == HTTP_MANAGER) {
     handleWifi0();
   } else {
