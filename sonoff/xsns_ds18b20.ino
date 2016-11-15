@@ -101,6 +101,22 @@ void dsb_write(uint8_t ByteToWrite)
     dsb_write_bit((bitMask & ByteToWrite) ? 1 : 0);
 }
 
+uint8 crcDS(uint8 inp, uint8 crc)
+{
+ inp ^= crc;
+ crc = 0;
+ if(inp & 0x1)   crc ^= 0x5e;
+ if(inp & 0x2)   crc ^= 0xbc;
+ if(inp & 0x4)   crc ^= 0x61;
+ if(inp & 0x8)   crc ^= 0xc2;
+ if(inp & 0x10)  crc ^= 0x9d;
+ if(inp & 0x20)  crc ^= 0x23;
+ if(inp & 0x40)  crc ^= 0x46;
+ if(inp & 0x80)  crc ^= 0x8c;
+ return (crc);
+}
+
+
 void dsb_readTempPrep()
 {
   dsb_reset();
@@ -111,10 +127,15 @@ void dsb_readTempPrep()
 boolean dsb_readTemp(float &t)
 {
   int16_t DSTemp;
-  byte msb, lsb;
+  byte msb, lsb, crc;
 
   t = NAN;
-
+  
+  if (!dsb_read_bit()) { //check measurement end
+    addLog_P(LOG_LEVEL_DEBUG, PSTR("Sensor busy"));
+    return (!isnan(t));
+  }
+  
 /*
   dsb_reset();
   dsb_write(0xCC);           // Skip ROM
@@ -126,10 +147,24 @@ boolean dsb_readTemp(float &t)
   dsb_write(0xBE);           // Read scratchpad
   lsb = dsb_read();
   msb = dsb_read();
+  crc = crcDS(lsb, crc);
+  crc = crcDS(msb, crc);
+  crc = crcDS(dsb_read(), crc);
+  crc = crcDS(dsb_read(), crc);
+  crc = crcDS(dsb_read(), crc);
+  crc = crcDS(dsb_read(), crc);
+  crc = crcDS(dsb_read(), crc);
+  crc = crcDS(dsb_read(), crc);
+  crc = crcDS(dsb_read(), crc);
   dsb_reset();
   
-  DSTemp = (msb << 8) + lsb;
-  t = (float(DSTemp) * 0.0625);
+  if (!crc) { //check crc
+    DSTemp = (msb << 8) + lsb;
+    t = (float(DSTemp) * 0.0625);
+  } else {
+    addLog_P(LOG_LEVEL_DEBUG, PSTR("Sensor CRC error "));
+  }
+
   return (!isnan(t));
 }
 #endif  // SEND_TELEMETRY_DS18B20
