@@ -26,6 +26,9 @@ POSSIBILITY OF SUCH DAMAGE.
 */
 
 #ifdef SEND_TELEMETRY_DS18B20
+
+#include <OneWire.h>
+
 /*********************************************************************************************\
  * DS18B20 - Temperature
  * 

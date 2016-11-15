@@ -3,9 +3,9 @@
 \*********************************************************************************************/
 
 // Enable only one out of three MODULE defines below
-#define MODULE                 SONOFF            // Sonoff, Sonoff SV, Sonoff Dual, Sonoff TH 10A/16A, S20 Smart Socket, 4 Channel
+//#define MODULE                 SONOFF            // Sonoff, Sonoff SV, Sonoff Dual, Sonoff TH 10A/16A, S20 Smart Socket, 4 Channel
 //#define MODULE                 SONOFF_POW        // Sonoff Pow
-//#define MODULE                 ELECTRO_DRAGON    // Electro Dragon Wifi IoT Relay Board Based on ESP8266  
+#define MODULE                 ELECTRO_DRAGON    // Electro Dragon Wifi IoT Relay Board Based on ESP8266  
 
 #define PROJECT                "sonoff"     // PROJECT is used as the default topic delimiter and OTA file name
                                             // As an IDE restriction it needs to be the same as the main .ino file
@@ -15,27 +15,27 @@
 #define SAVE_STATE             1            // Save changed power state to Flash (0 = disable, 1 = enable)
 
 // Wifi
-#define STA_SSID               "indebuurt3"      // Wifi SSID
-#define STA_PASS               "VnsqrtnrsddbrN"  // Wifi password
+#define STA_SSID               "sonoff.net"      // Wifi SSID
+#define STA_PASS               "secretpassword"  // Wifi password
 #define WIFI_HOSTNAME          "%s-%04d"         // Expands to <MQTT_TOPIC>-<last 4 decimal chars of MAC address>
 #define WIFI_CONFIG_TOOL       WIFI_WPSCONFIG    // Default tool if wifi fails to connect (WIFI_SMARTCONFIG, WIFI_MANAGER or WIFI_WPSCONFIG)
 
 // Syslog
-#define SYS_LOG_HOST           "domus1"
+#define SYS_LOG_HOST           "sysloghost"
 #define SYS_LOG_PORT           514
-#define SYS_LOG_LEVEL          LOG_LEVEL_NONE
+#define SYS_LOG_LEVEL          LOG_LEVEL_INFO
 #define SERIAL_LOG_LEVEL       LOG_LEVEL_INFO
 #define WEB_LOG_LEVEL          LOG_LEVEL_INFO
 
 // Ota
 #if (ARDUINO >= 168)
-  #define OTA_URL              "http://domus1:80/api/arduino/" PROJECT ".ino.bin"
+  #define OTA_URL              "http://webserver:80/api/arduino/" PROJECT ".ino.bin"
 #else
-  #define OTA_URL              "http://domus1:80/api/arduino/" PROJECT ".cpp.bin"
+  #define OTA_URL              "http://webserver:80/api/arduino/" PROJECT ".cpp.bin"
 #endif
 
 // MQTT
-#define MQTT_HOST              "domus1"
+#define MQTT_HOST              "mqtthost"
 #define MQTT_PORT              1883
 
 #define MQTT_CLIENT_ID         "DVES_%06X"  // Also fall back topic using Chip Id = last 6 characters of MAC address
@@ -53,17 +53,17 @@
 #define MQTT_STATUS_OFF        "OFF"        // Status result when turned off (needs to be a string like "0" or "Off")
 
 // Domoticz
-#define USE_DOMOTICZ                        // Enable Domoticz (+3k code, +0.2k mem) - Disable by //
-#define DOMOTICZ_IN_TOPIC      "domoticz/in"
-#define DOMOTICZ_OUT_TOPIC     "domoticz/out"
-#define DOMOTICZ_RELAY_IDX1    0            // Sonoff Relay 1 (0 = disable domoticz)
-#define DOMOTICZ_RELAY_IDX2    0            // Sonoff Dual Relay 2
-#define DOMOTICZ_KEY_IDX1      0            // Button single press (0 = disable)
-#define DOMOTICZ_KEY_IDX2      0            // Button double press (0 = disable)
-#define DOMOTICZ_UPDATE_TIMER  0            // Send relay status (0 = disable, 1 - 3600 seconds) (Optional)
+//#define USE_DOMOTICZ                        // Enable Domoticz (+3k code, +0.2k mem) - Disable by //
+//#define DOMOTICZ_IN_TOPIC      "domoticz/in"
+//#define DOMOTICZ_OUT_TOPIC     "domoticz/out"
+//#define DOMOTICZ_RELAY_IDX1    0            // Sonoff Relay 1 (0 = disable domoticz)
+//#define DOMOTICZ_RELAY_IDX2    0            // Sonoff Dual Relay 2
+//#define DOMOTICZ_KEY_IDX1      0            // Button single press (0 = disable)
+//#define DOMOTICZ_KEY_IDX2      0            // Button double press (0 = disable)
+//#define DOMOTICZ_UPDATE_TIMER  0            // Send relay status (0 = disable, 1 - 3600 seconds) (Optional)
 
 // MQTT - Telemetry
-#define TELE_PERIOD            300          // Telemetry (0 = disable, 2 - 3600 seconds)
+#define TELE_PERIOD            60           // Telemetry (0 = disable, 2 - 3600 seconds)
 #define SEND_TELEMETRY_UPTIME               // Enable sending uptime telemetry (if disabled will still send hourly message)
 #define SEND_TELEMETRY_RSSI                 // Enable sending wifi RSSI telemetry
 #define SEND_TELEMETRY_POWER                // Enable sending power telemetry
@@ -73,9 +73,9 @@
 #define WEB_SERVER             2            // Web server (0 = Off, 1 = Start as User, 2 = Start as Admin)
 
 // Time - Up to three NTP servers in your region
-#define NTP_SERVER1            "pool.ntp.org"
-#define NTP_SERVER2            "nl.pool.ntp.org"
-#define NTP_SERVER3            "0.nl.pool.ntp.org"
+#define NTP_SERVER1            "fritz.box"
+#define NTP_SERVER2            "de.pool.ntp.org"
+#define NTP_SERVER3            "0.de.pool.ntp.org"
 
 // Time - Start Daylight Saving Time and timezone offset from UTC in minutes
 #define TIME_DST               Last, Sun, Mar, 2, +120  // Last sunday in march at 02:00 +120 minutes
@@ -101,7 +101,7 @@
   #define KEY_PIN              0            // GPIO 00 = Button
 /*-------------------------------------------------------------------------------------------*/
   #define DSB_PIN              14           // GPIO 14 = DS18B20 (Sonoff_TH10A(16A), Sonoff SV)
-//  #define SEND_TELEMETRY_DS18B20            // Enable sending temperature telemetry
+  #define SEND_TELEMETRY_DS18B20            // Enable sending temperature telemetry
 /*-------------------------------------------------------------------------------------------*/
   #define DHT_PIN              14           // GPIO 14 = AM2301 (Sonoff_TH10A(16A), Sonoff SV)
   #define DHT_TYPE             AM2301       // DHT module type (DHT11, DHT21, DHT22, AM2301, AM2302 or AM2321)
@@ -143,7 +143,7 @@
   #define KEY2_PIN             0            // GPIO 00 = Button 2
 /*-------------------------------------------------------------------------------------------*/
   #define DSB_PIN              4            // GPIO 04 = DS18B20
-//  #define SEND_TELEMETRY_DS18B20            // Enable sending temperature telemetry
+  #define SEND_TELEMETRY_DS18B20            // Enable sending temperature telemetry
 /*-------------------------------------------------------------------------------------------*/
   #define DHT_PIN              14           // GPIO 14 = DHT22
   #define DHT_TYPE             DHT22        // DHT module type (DHT11, DHT21, DHT22, AM2301, AM2302 or AM2321)
