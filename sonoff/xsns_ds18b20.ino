@@ -35,104 +35,109 @@ POSSIBILITY OF SUCH DAMAGE.
  * Source: Marinus vd Broek https://github.com/ESP8266nu/ESPEasy
 \*********************************************************************************************/
 
-uint8_t dsb_reset()
-{
-  uint8_t r;
-  uint8_t retries = 125;
-  
-  pinMode(DSB_PIN, INPUT);
-  do  {                                 // wait until the wire is high... just in case
-    if (--retries == 0) return 0;
-    delayMicroseconds(2);
-  } while (!digitalRead(DSB_PIN));
-  pinMode(DSB_PIN, OUTPUT);
-  digitalWrite(DSB_PIN, LOW);
-  delayMicroseconds(492);               // Dallas spec. = Min. 480uSec. Arduino 500uSec.
-  pinMode(DSB_PIN, INPUT);              // Float
-  delayMicroseconds(40);
-  r = !digitalRead(DSB_PIN);
-  delayMicroseconds(420);
-  return r;
-}
-
-uint8_t dsb_read_bit(void)
-{
-  uint8_t r;
-
-  pinMode(DSB_PIN, OUTPUT);
-  digitalWrite(DSB_PIN, LOW);
-  delayMicroseconds(3);
-  pinMode(DSB_PIN, INPUT);             // let pin float, pull up will raise
-  delayMicroseconds(10);
-  r = digitalRead(DSB_PIN);
-  delayMicroseconds(53);
-  return r;
-}
-
-uint8_t dsb_read(void)
-{
-  uint8_t bitMask;
-  uint8_t r = 0;
-
-  for (bitMask = 0x01; bitMask; bitMask <<= 1)
-    if (dsb_read_bit()) r |= bitMask;
-  return r;
-}
-
-void dsb_write_bit(uint8_t v)
-{
-  if (v & 1) {
-    digitalWrite(DSB_PIN, LOW);
-    pinMode(DSB_PIN, OUTPUT);
-    delayMicroseconds(10);
-    digitalWrite(DSB_PIN, HIGH);
-    delayMicroseconds(55);
-  } else {
-    digitalWrite(DSB_PIN, LOW);
-    pinMode(DSB_PIN, OUTPUT);
-    delayMicroseconds(65);
-    digitalWrite(DSB_PIN, HIGH);
-    delayMicroseconds(5);
-  }
-}
-
-void dsb_write(uint8_t ByteToWrite)
-{
-  uint8_t bitMask;
-  
-  for (bitMask = 0x01; bitMask; bitMask <<= 1)
-    dsb_write_bit((bitMask & ByteToWrite) ? 1 : 0);
-}
+OneWire ds(DSB_PIN);
+byte addr[8];
+byte present = 0;
+byte data[12];
 
 void dsb_readTempPrep()
 {
-  dsb_reset();
-  dsb_write(0xCC);           // Skip ROM
-  dsb_write(0x44);           // Start conversion
+  byte i;
+
+  ds.reset_search();
+  if ( !ds.search(addr)) 
+  {
+    Serial.print("No more addresses.\n");
+    ds.reset_search();
+  }
+  
+  Serial.print("R=");
+  for( i = 0; i < 8; i++) 
+  {
+    Serial.print(addr[i], HEX);
+    Serial.print(" ");
+  }
+
+  if ( OneWire::crc8( addr, 7) != addr[7]) 
+  {
+    Serial.print("CRC is not valid!\n");
+    return;
+  }
+
+  if ( addr[0] == 0x10) 
+  {
+      Serial.print("Device is a DS18S20 family device.\n");
+  }
+  else if ( addr[0] == 0x28) 
+  {
+      Serial.print("Device is a DS18B20 family device.\n");
+  }
+  else 
+  {
+      Serial.print("Device family is not recognized: 0x");
+      Serial.println(addr[0],HEX);
+      return;
+  }
 }
 
 boolean dsb_readTemp(float &t)
 {
-  int16_t DSTemp;
-  byte msb, lsb;
-
+  int HighByte, LowByte, TReading, SignBit, Tc_100, Whole, Fract, i;
+  
   t = NAN;
 
-/*
-  dsb_reset();
-  dsb_write(0xCC);           // Skip ROM
-  dsb_write(0x44);           // Start conversion
-  delay(800);
-*/
-  dsb_reset();
-  dsb_write(0xCC);           // Skip ROM
-  dsb_write(0xBE);           // Read scratchpad
-  lsb = dsb_read();
-  msb = dsb_read();
-  dsb_reset();
+  ds.reset();
+  ds.select(addr);
+  ds.write(0x44,1);         // start conversion, with parasite power on at the end
+
+  delay(1000);     // maybe 750ms is enough, maybe not
+  // we might do a ds.depower() here, but the reset will take care of it.
+
+  present = ds.reset();
+  ds.select(addr);    
+  ds.write(0xBE);         // Read Scratchpad
+
+  Serial.print("P=");
+  Serial.print(present,HEX);
+  Serial.print(" ");
+  for ( i = 0; i < 9; i++) {           // we need 9 bytes
+    data[i] = ds.read();
+    Serial.print(data[i], HEX);
+    Serial.print(" ");
+  }
   
-  DSTemp = (msb << 8) + lsb;
-  t = (float(DSTemp) * 0.0625);
+  Serial.print(" CRC=");
+  Serial.print( OneWire::crc8( data, 8), HEX);
+  Serial.println();  
+  
+  LowByte = data[0];
+  HighByte = data[1];
+  TReading = (HighByte << 8) + LowByte;
+  SignBit = TReading & 0x8000;  // test most sig bit
+  
+  if (SignBit) // negative
+  {
+    TReading = (TReading ^ 0xffff) + 1; // 2's comp
+  }
+  Tc_100 = (6 * TReading) + TReading / 4;    // multiply by (100 * 0.0625) or 6.25
+
+  Whole = Tc_100 / 100;  // separate off the whole and fractional portions
+  Fract = Tc_100 % 100;
+
+  if (SignBit) // If its negative
+  {
+     Serial.print("-");
+  }
+  Serial.print(Whole);
+  Serial.print(".");
+  if (Fract < 10)
+  {
+     Serial.print("0");
+  }
+  Serial.print(Fract);
+  Serial.print("\n");
+
+  t = 85.0;
   return (!isnan(t));
 }
 #endif  // SEND_TELEMETRY_DS18B20

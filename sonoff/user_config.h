@@ -15,8 +15,8 @@
 #define SAVE_STATE             1            // Save changed power state to Flash (0 = disable, 1 = enable)
 
 // Wifi
-#define STA_SSID               "sonoff.net"      // Wifi SSID
-#define STA_PASS               "secretpassword"  // Wifi password
+#define STA_SSID               "TU-KL_guest"     // Wifi SSID
+#define STA_PASS               ""                // Wifi password
 #define WIFI_HOSTNAME          "%s-%04d"         // Expands to <MQTT_TOPIC>-<last 4 decimal chars of MAC address>
 #define WIFI_CONFIG_TOOL       WIFI_WPSCONFIG    // Default tool if wifi fails to connect (WIFI_SMARTCONFIG, WIFI_MANAGER or WIFI_WPSCONFIG)
 
@@ -35,7 +35,7 @@
 #endif
 
 // MQTT
-#define MQTT_HOST              "mqtthost"
+#define MQTT_HOST              "status.uni-kl.de"
 #define MQTT_PORT              1883
 
 #define MQTT_CLIENT_ID         "DVES_%06X"  // Also fall back topic using Chip Id = last 6 characters of MAC address
@@ -53,14 +53,14 @@
 #define MQTT_STATUS_OFF        "OFF"        // Status result when turned off (needs to be a string like "0" or "Off")
 
 // Domoticz
-//#define USE_DOMOTICZ                        // Enable Domoticz (+3k code, +0.2k mem) - Disable by //
-//#define DOMOTICZ_IN_TOPIC      "domoticz/in"
-//#define DOMOTICZ_OUT_TOPIC     "domoticz/out"
-//#define DOMOTICZ_RELAY_IDX1    0            // Sonoff Relay 1 (0 = disable domoticz)
-//#define DOMOTICZ_RELAY_IDX2    0            // Sonoff Dual Relay 2
-//#define DOMOTICZ_KEY_IDX1      0            // Button single press (0 = disable)
-//#define DOMOTICZ_KEY_IDX2      0            // Button double press (0 = disable)
-//#define DOMOTICZ_UPDATE_TIMER  0            // Send relay status (0 = disable, 1 - 3600 seconds) (Optional)
+#define USE_DOMOTICZ                        // Enable Domoticz (+3k code, +0.2k mem) - Disable by //
+#define DOMOTICZ_IN_TOPIC      "domoticz/in"
+#define DOMOTICZ_OUT_TOPIC     "domoticz/out"
+#define DOMOTICZ_RELAY_IDX1    0            // Sonoff Relay 1 (0 = disable domoticz)
+#define DOMOTICZ_RELAY_IDX2    0            // Sonoff Dual Relay 2
+#define DOMOTICZ_KEY_IDX1      0            // Button single press (0 = disable)
+#define DOMOTICZ_KEY_IDX2      0            // Button double press (0 = disable)
+#define DOMOTICZ_UPDATE_TIMER  0            // Send relay status (0 = disable, 1 - 3600 seconds) (Optional)
 
 // MQTT - Telemetry
 #define TELE_PERIOD            60           // Telemetry (0 = disable, 2 - 3600 seconds)
@@ -73,7 +73,7 @@
 #define WEB_SERVER             2            // Web server (0 = Off, 1 = Start as User, 2 = Start as Admin)
 
 // Time - Up to three NTP servers in your region
-#define NTP_SERVER1            "fritz.box"
+#define NTP_SERVER1            "ntp.uni-kl.de"
 #define NTP_SERVER2            "de.pool.ntp.org"
 #define NTP_SERVER3            "0.de.pool.ntp.org"
 
@@ -142,7 +142,7 @@
   #define REL2_PIN             12           // GPIO 12 = Red Led and Relay 2 (0 = Off, 1 = On)
   #define KEY2_PIN             0            // GPIO 00 = Button 2
 /*-------------------------------------------------------------------------------------------*/
-  #define DSB_PIN              4            // GPIO 04 = DS18B20
+  #define DSB_PIN              14           // GPIO 04 = DS18B20
   #define SEND_TELEMETRY_DS18B20            // Enable sending temperature telemetry
 /*-------------------------------------------------------------------------------------------*/
   #define DHT_PIN              14           // GPIO 14 = DHT22
