@@ -1391,8 +1391,7 @@ void every_second_cb()
   
 #ifdef FEATURE_POWER_LIMIT
   if (rtc_loctime() == rtc_midnight()) {
-    hlw_mdpls_flag = 0;
-    
+    hlw_mdpls_flag = 0;    
   }
 #endif  // FEATURE_POWER_LIMIT
 }
@@ -1405,6 +1404,7 @@ void every_second()
   uint8_t sensors=0;
   uint8_t i,j;
 
+  Serial.println("Every Second...");
   if (status_update_timer) {
     status_update_timer--;
     if (!status_update_timer) {
@@ -1585,18 +1585,7 @@ void stateloop()
       snprintf_P(log, sizeof(log), PSTR("APP: Button code %04X"), ButtonCode);
       addLog(LOG_LEVEL_DEBUG, log);
       button = PRESSED;
-/*
-      if ((ButtonCode >> 8) == 0x04) {
-        if ((ButtonCode & 0x02) != (power & 0x02)) {
-          multiwindow = STATES /2;
-          multipress = 1;
-        }
-      } else {
-*/
-        if (ButtonCode == 0xF500) holdcount = (STATES *4) -1;
-/*
-      }
-*/
+      if (ButtonCode == 0xF500) holdcount = (STATES *4) -1;
       ButtonCode = 0;
     } else {
       button = NOT_PRESSED;
