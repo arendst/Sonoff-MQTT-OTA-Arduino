@@ -339,6 +339,23 @@ void handleRoot()
       }  
       page += F("</tr></table><br/>");
     }
+
+#ifdef SEND_TELEMETRY_DHT
+    float t, h;
+    char stemp1[10], stemp2[10], stemp3[10];
+    page += F("<table style='width:100%'>");
+    if (dht_readTempHum(false, t, h)) {     // Read temperature as Celsius (the default)
+      dtostrf(t, 1, 1, stemp1);
+      dtostrf(h, 1, 1, stemp2);
+      page += F("<tr><td>Temperature: </td><td>");
+      page += stemp1;
+      page += F("&deg;C</td></tr>");
+      page += F("<tr><td>Humidity: </td><td>");
+      page += stemp2;
+      page += F("%</td></tr>");
+    }
+    page += F("</table><br/>");
+#endif  // SEND_TELEMETRY_DHT
     
     if (_httpflag == HTTP_ADMIN) {
       page += FPSTR(HTTP_BTN_MENU1);
