@@ -1,5 +1,6 @@
 /*
-These routines provide support to my various ESP8266 based projects.
+Original Code by Theo Arends. Modified to use Arduino OneWire Library and provide support
+for multiple DS18x20 Sensors.
 
 Copyright (c) 2016 Theo Arends.  All rights reserved.
 
@@ -25,119 +26,79 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifdef SEND_TELEMETRY_DS18B20
+#define W1_SKIP_ROM 0xCC
+#define W1_CONVERT_TEMP 0x44
+#define W1_READ_SCRATCHPAD 0xBE
+
+#ifdef SEND_TELEMETRY_DS18x20
 
 #include <OneWire.h>
 
-/*********************************************************************************************\
- * DS18B20 - Temperature
- * 
- * Source: Marinus vd Broek https://github.com/ESP8266nu/ESPEasy
-\*********************************************************************************************/
-
 OneWire ds(DSB_PIN);
-byte addr[8];
-byte present = 0;
-byte data[12];
 
-void dsb_readTempPrep()
+uint8_t ds18x20_search()
 {
-  byte i;
+  uint8_t num_sensors=0;
+  uint8_t sensor=0;
+  
+  uint8_t i;
 
   ds.reset_search();
-  if ( !ds.search(addr)) 
+  for(num_sensors=0;num_sensors<DS18X20_MAX_SENSORS;num_sensors)
   {
-    Serial.print("No more addresses.\n");
-    ds.reset_search();
-  }
-  
-  Serial.print("R=");
-  for( i = 0; i < 8; i++) 
-  {
-    Serial.print(addr[i], HEX);
-    Serial.print(" ");
+    if (!ds.search(addr[num_sensors])) 
+    {
+      ds.reset_search();
+      break;
+    }    
+
+    // If CRC Ok and Type DS18S20 or DS18B20
+    if ((OneWire::crc8(addr[num_sensors],7) == addr[num_sensors][7]) & 
+       ((addr[num_sensors][0]==0x10) | (addr[num_sensors][0]==0x28)))
+       num_sensors++;
   }
 
-  if ( OneWire::crc8( addr, 7) != addr[7]) 
-  {
-    Serial.print("CRC is not valid!\n");
-    return;
-  }
-
-  if ( addr[0] == 0x10) 
-  {
-      Serial.print("Device is a DS18S20 family device.\n");
-  }
-  else if ( addr[0] == 0x28) 
-  {
-      Serial.print("Device is a DS18B20 family device.\n");
-  }
-  else 
-  {
-      Serial.print("Device family is not recognized: 0x");
-      Serial.println(addr[0],HEX);
-      return;
-  }
+  return num_sensors;
 }
 
-boolean dsb_readTemp(float &t)
+void ds18x20_convert()
 {
-  int HighByte, LowByte, TReading, SignBit, Tc_100, Whole, Fract, i;
-  
-  t = NAN;
-
   ds.reset();
-  ds.select(addr);
-  ds.write(0x44,1);         // start conversion, with parasite power on at the end
+  ds.write(W1_SKIP_ROM);        // Address all Sensors on Bus
+  ds.write(W1_CONVERT_TEMP);    // start conversion, no parasite power on at the end
 
-  delay(1000);     // maybe 750ms is enough, maybe not
-  // we might do a ds.depower() here, but the reset will take care of it.
+  delay(750);                   // 750ms should be enough for 12bit conv
+}                             
 
-  present = ds.reset();
-  ds.select(addr);    
-  ds.write(0xBE);         // Read Scratchpad
+boolean ds18x20_read(uint8_t sensor, float &t)
+{
+  byte data[12];
+  uint8_t sign=1;
+  uint8_t i=0;
+  float temp9=0.0;
+  uint8_t present = 0;
 
-  Serial.print("P=");
-  Serial.print(present,HEX);
-  Serial.print(" ");
-  for ( i = 0; i < 9; i++) {           // we need 9 bytes
-    data[i] = ds.read();
-    Serial.print(data[i], HEX);
-    Serial.print(" ");
-  }
+  t = NAN;
   
-  Serial.print(" CRC=");
-  Serial.print( OneWire::crc8( data, 8), HEX);
-  Serial.println();  
-  
-  LowByte = data[0];
-  HighByte = data[1];
-  TReading = (HighByte << 8) + LowByte;
-  SignBit = TReading & 0x8000;  // test most sig bit
-  
-  if (SignBit) // negative
-  {
-    TReading = (TReading ^ 0xffff) + 1; // 2's comp
-  }
-  Tc_100 = (6 * TReading) + TReading / 4;    // multiply by (100 * 0.0625) or 6.25
+  ds.reset();
+  ds.select(addr[sensor]);    
+  ds.write(W1_READ_SCRATCHPAD); // Read Scratchpad
 
-  Whole = Tc_100 / 100;  // separate off the whole and fractional portions
-  Fract = Tc_100 % 100;
+  for (i=0;i<9;i++) 
+    data[i]=ds.read();
 
-  if (SignBit) // If its negative
+  if(OneWire::crc8(data,8)==data[8])
   {
-     Serial.print("-");
+    switch(addr[sensor][0])
+    {
+      case 0x10 : if(data[1]>0x80) sign=-1; //App-Note kann sonst zu Vorzeichenfehler kommen
+                  if(data[0] & 1) temp9=((data[0]>>1)+0.5)*sign; else temp9=(data[0]>>1)*sign;
+                  t=(temp9-0.25)+((16.0-data[6])/16.0);
+                  break;
+      case 0x28 : t=((data[1]<<8)+data[0])*0.0625;
+                  break;
+    }         
   }
-  Serial.print(Whole);
-  Serial.print(".");
-  if (Fract < 10)
-  {
-     Serial.print("0");
-  }
-  Serial.print(Fract);
-  Serial.print("\n");
-
-  t = 85.0;
   return (!isnan(t));
 }
-#endif  // SEND_TELEMETRY_DS18B20
+#endif  // SEND_TELEMETRY_DS18x20
