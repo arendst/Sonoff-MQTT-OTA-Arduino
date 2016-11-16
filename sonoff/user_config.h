@@ -53,7 +53,7 @@
 #define MQTT_STATUS_OFF        "OFF"        // Status result when turned off (needs to be a string like "0" or "Off")
 
 // Domoticz
-#define USE_DOMOTICZ                        // Enable Domoticz (+3k code, +0.2k mem) - Disable by //
+// #define USE_DOMOTICZ                        // Enable Domoticz (+3k code, +0.2k mem) - Disable by //
 #define DOMOTICZ_IN_TOPIC      "domoticz/in"
 #define DOMOTICZ_OUT_TOPIC     "domoticz/out"
 #define DOMOTICZ_RELAY_IDX1    0            // Sonoff Relay 1 (0 = disable domoticz)
@@ -73,9 +73,9 @@
 #define WEB_SERVER             2            // Web server (0 = Off, 1 = Start as User, 2 = Start as Admin)
 
 // Time - Up to three NTP servers in your region
-#define NTP_SERVER1            "ntp.uni-kl.de"
-#define NTP_SERVER2            "de.pool.ntp.org"
-#define NTP_SERVER3            "0.de.pool.ntp.org"
+#define NTP_SERVER1            "de.pool.ntp.org"
+#define NTP_SERVER2            "0.de.pool.ntp.org"
+#define NTP_SERVER3            "1.de.pool.ntp.org"
 
 // Time - Start Daylight Saving Time and timezone offset from UTC in minutes
 #define TIME_DST               Last, Sun, Mar, 2, +120  // Last sunday in march at 02:00 +120 minutes
@@ -143,7 +143,8 @@
   #define KEY2_PIN             0            // GPIO 00 = Button 2
 /*-------------------------------------------------------------------------------------------*/
   #define DSB_PIN              14           // GPIO 04 = DS18B20
-  #define SEND_TELEMETRY_DS18B20            // Enable sending temperature telemetry
+  #define DS18X20_MAX_SENSORS   8           // Maximum Sensors of Type DS18x20
+  #define SEND_TELEMETRY_DS18x20            // Enable sending temperature telemetry
 /*-------------------------------------------------------------------------------------------*/
   #define DHT_PIN              14           // GPIO 14 = DHT22
   #define DHT_TYPE             DHT22        // DHT module type (DHT11, DHT21, DHT22, AM2301, AM2302 or AM2321)

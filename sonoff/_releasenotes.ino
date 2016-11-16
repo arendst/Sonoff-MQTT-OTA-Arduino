@@ -1,4 +1,9 @@
-/* 2.0.13 20161113
+/* 2.0.14 20161116
+ * Change onewire sensors to Arduino OneWire Library 
+ * Add support for DS18x20 Family
+ * Add support for more than one DS18x20 sensor on bus
+ * 
+ * 2.0.13 20161113
  * Add additional upload error code descriptions
  * Add PlatformIO support
  * 

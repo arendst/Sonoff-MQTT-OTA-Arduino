@@ -251,7 +251,11 @@ uint8_t multipress = 0;               // Number of button presses within multiwi
 #ifdef USE_DOMOTICZ
   int domoticz_update_timer = 0;
   byte domoticz_update_flag;  
-#endif  // USE_DOMOTICZ 
+#endif  // USE_DOMOTICZ
+
+#ifdef SEND_TELEMETRY_DS18x20
+  byte addr[DS18X20_MAX_SENSORS][8];
+#endif  // SEND_TELEMETRY_DS18x20
 
 /********************************************************************************************/
 
@@ -461,8 +465,6 @@ void mqtt_publish(const char* topic, const char* data, boolean retained)
 
   if (mqttClient.publish(topic, data, retained)) {
     snprintf_P(log, sizeof(log), PSTR("MQTT: %s = %s%s"), topic, data, (retained) ? " (retained)" : "");
-//    snprintf_P(log, sizeof(log), PSTR("MQTT: %s = %s%s"), strchr(topic,'/')+1, data, (retained) ? " (retained)" : ""); // Skip topic prefix
-//    mqttClient.loop();  // Do not use here! Will block previous publishes
   } else {
     snprintf_P(log, sizeof(log), PSTR("RSLT: %s = %s"), topic, data);
   }
@@ -1397,20 +1399,16 @@ void every_second_cb()
 
 void every_second()
 {
-  char log[LOGSZ], stopic[TOPSZ], svalue[MESSZ], stemp1[10], stemp2[10], stemp3[10];
+  char log[LOGSZ], stopic[TOPSZ], svalue[MESSZ], stemp1[20], stemp2[10], stemp3[10];
   float t, h, ped, pi, pc;
   uint16_t pe, pw, pu;
-  byte i;
+  uint8_t sensors=0;
+  uint8_t i,j;
 
   if (status_update_timer) {
     status_update_timer--;
     if (!status_update_timer) {
       for (i = 0; i < Maxdevice; i++) {
-        
-//        snprintf_P(svalue, sizeof(svalue), PSTR("%d/%s %d"),
-//          i +1, sysCfg.mqtt_subtopic, (power & (0x01 << i)) ? 1 : 0);
-//        do_cmnd(svalue);    // <--- Exception loop_task - need investigation
-
         snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/%d/%s"), PUB_PREFIX, sysCfg.mqtt_topic, i +1, sysCfg.mqtt_subtopic);
         strlcpy(svalue, (power & (0x01 << i)) ? MQTT_STATUS_ON : MQTT_STATUS_OFF, sizeof(svalue));
         mqtt_publish(stopic, svalue);
@@ -1439,10 +1437,6 @@ void every_second()
     tele_period++;
     if (tele_period == sysCfg.tele_period -1) {
       
-#ifdef SEND_TELEMETRY_DS18B20
-      dsb_readTempPrep();
-#endif  // SEND_TELEMETRY_DS18B20
-
 #ifdef SEND_TELEMETRY_DHT
       dht_readPrep();
 #endif  // SEND_TELEMETRY_DHT
@@ -1463,14 +1457,26 @@ void every_second()
       mqtt_publish(stopic, svalue);
 #endif  // SEND_TELEMETRY_RSSI
 
-#ifdef SEND_TELEMETRY_DS18B20
-      if (dsb_readTemp(t)) {                 // Check if read failed
-        snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/TEMPERATURE"), PUB_PREFIX2, sysCfg.mqtt_topic);
-        dtostrf(t, 1, 1, stemp1);
-        snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? " C" : "");
-        mqtt_publish(stopic, svalue);
+#ifdef SEND_TELEMETRY_DS18x20
+      sensors=ds18x20_search();
+      ds18x20_convert();                   // Start Conversion
+      for(i=0;i<sensors;i++)
+      {
+        if (ds18x20_read(i,t)) {           // Check if read failed
+          for(j=0;j<8;j++)                 // Leading Zero isn't printed with .%2X 
+          {
+            if(addr[i][j]<0x10) 
+              snprintf_P(stemp1+2*j, sizeof(stemp1+2*j), PSTR("0%X"),addr[i][j]);
+            else
+              snprintf_P(stemp1+2*j, sizeof(stemp1+2*j), PSTR("%X"),addr[i][j]);
+          }
+          snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/TEMPERATURE/%s/"), PUB_PREFIX2, sysCfg.mqtt_topic,stemp1);
+          dtostrf(t, 1, 4, stemp1);        // 12Bit steps 0.0625
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? " C" : "");
+          mqtt_publish(stopic, svalue);
+        }
       }
-#endif  // SEND_TELEMETRY_DS18B20
+#endif  // SEND_TELEMETRY_DS18x20
 
 #ifdef SEND_TELEMETRY_DHT
       if (dht_readTempHum(false, t, h)) {     // Read temperature as Celsius (the default)
