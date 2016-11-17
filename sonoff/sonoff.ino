@@ -1404,7 +1404,6 @@ void every_second()
   uint8_t sensors=0;
   uint8_t i,j;
 
-  Serial.println("Every Second...");
   if (status_update_timer) {
     status_update_timer--;
     if (!status_update_timer) {
