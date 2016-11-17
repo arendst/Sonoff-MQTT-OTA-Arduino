@@ -1,6 +1,5 @@
 /*
-Original Code by Theo Arends. Modified to use Arduino OneWire Library and provide support
-for multiple DS18x20 Sensors.
+Original Code by Theo Arends. Modified to use Arduino OneWire Library and provide support for multiple DS18x20 Sensors.
 
 Copyright (c) 2016 Theo Arends.  All rights reserved.
 
