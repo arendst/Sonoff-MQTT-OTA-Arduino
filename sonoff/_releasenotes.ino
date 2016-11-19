@@ -1,8 +1,24 @@
-/* 2.0.14 20161116
- * Change onewire sensors to Arduino OneWire Library 
- * Add support for DS18x20 Family
- * Add support for more than one DS18x20 sensor on bus
+/* 2.0.16
+ * Add alternative sensor driver DS18x20 using OneWire library
+ * Change sensor MQTT message from tele/sonoff/TEMPERATURE to tele/sonoff/DHT/TEMPERATURE or
+ *   tele/sonoff/DS18B20/TEMPERATURE or tele/sonoff/DS18x20/1/TEMPERATURE
+ * Add sensors to root webpage and auto refresh every 4 seconds
+ * Add optional JSON messageformat to all telemetry data
+ * Enforce minimum TelePeriod to be 10 seconds
+ * Fix Energy Yesterday reset after restart
+ * Add Energy Today restore after controlled restart
  * 
+ * 2.0.15
+ * Change TODAY_POWER and PERIOD_POWER to TODAY_ENERGY and PERIOD_ENERGY
+ * Fix serial regression
+ * Fix syslog hangs when loghost is unavailable
+ * 
+ * 2.0.14 20161115
+ * Add HLW threshold delay
+ * Fix HLW intermittent current deviation
+ * Fix button functionality during wificonfig
+ * Add CRC check to DS18B20 sensor
+ *
  * 2.0.13 20161113
  * Add additional upload error code descriptions
  * Add PlatformIO support
