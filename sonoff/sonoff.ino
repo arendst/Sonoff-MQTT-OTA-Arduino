@@ -118,6 +118,9 @@ enum butt_t {PRESSED, NOT_PRESSED};
 #ifdef USE_SPIFFS
   #include <FS.h>                           // Config
 #endif
+#ifdef SEND_TELEMETRY_I2C
+  #include <Wire.h>                         // Arduino I2C support library
+#endif // SEND_TELEMETRY_I2C
 
 typedef void (*rtcCallback)();
 
@@ -1972,6 +1975,10 @@ void setup()
   snprintf_P(log, sizeof(log), PSTR("APP: Project %s (Topic %s, Fallback %s, GroupTopic %s) Version %s"),
     PROJECT, sysCfg.mqtt_topic, MQTTClient, sysCfg.mqtt_grptopic, Version);
   addLog(LOG_LEVEL_INFO, log);
+
+#ifdef SEND_TELEMETRY_I2C
+	Wire.begin(DI2C_SDA,DI2C_SCL);
+#endif // SEND_TELEMETRY_I2C
 }
 
 void loop()
