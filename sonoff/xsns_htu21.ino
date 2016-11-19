@@ -25,4 +25,33 @@
 
 #ifdef SEND_TELEMETRY_I2C
 
+#define HTU21_ADDR          0x40
+#define HTU21_READTEMP      0xE3
+#define HTU21_READHUM       0xE5
+#define HTU21_WRITEREG      0xE6
+#define HTU21_READREG       0xE7
+#define HTU21_RESET         0xFE
+
+//HTU21 CRC Code
+//POLYNOMIAL = 0x0131 = x^8 + x^5 + x^4 + 1 : http://en.wikipedia.org/wiki/Computation_of_cyclic_redundancy_checks
+#define HTU21_CRC_SHIFT_DIV 0x988000 //This is the 0x0131 polynomial shifted to farthest left of three bytes
+
+uint8_t check_crc(uint16_t sensor, uint8_t crc)
+{
+  uint32_t remainder = (uint32_t)sensor << 8; //Pad with 8 bits because we have to add in the check value
+  uint32_t divisor = (uint32_t)HTU21_CRC_SHIFT_DIV;
+  
+  remainder |= crc; //Add on the check value
+
+  for (int i = 0 ; i < 16 ; i++) //Operate on only 16 positions of max 24. The remaining 8 are our remainder and should be zero when we're done.
+  {
+    if( remainder & (uint32_t)1<<(23 - i) ) //Check if there is a one in the left position
+      remainder ^= divisor;
+
+    divisor >>= 1; //Rotate the divsor max 16 times so that we have 8 bits left of a remainder
+  }
+
+  return (uint8_t)remainder;
+}
+
 #endif //SEND_TELEMETRY_I2C
