@@ -111,6 +111,10 @@
   #define DHT_TYPE             AM2301       // DHT module type (DHT11, DHT21, DHT22, AM2301, AM2302 or AM2321)
   #define DHT_RESOLUTION       1            // Maximum number of decimals (0 - 3) showing Temperature
 //  #define SEND_TELEMETRY_DHT                // Enable sending temperature and humidity telemetry
+/*-------------------------------------------------------------------------------------------*/
+  #define DI2C_SDA             14           // GPIO 14 = SDA
+  #define DI2C_SCL             4            // GPIO  4 = SCL
+  #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
 
 /*********************************************************************************************\
  * Sonoff Pow specific parameters
@@ -158,6 +162,10 @@
   #define DHT_TYPE             DHT22        // DHT module type (DHT11, DHT21, DHT22, AM2301, AM2302 or AM2321)
   #define DHT_RESOLUTION       1            // Maximum number of decimals (0 - 3) showing Temperature
 //  #define SEND_TELEMETRY_DHT                // Enable sending temperature and humidity telemetry
+/*-------------------------------------------------------------------------------------------*/
+  #define DI2C_SDA             14           // GPIO 14 = SDA
+  #define DI2C_SCL             4            // GPIO  4 = SCL
+  #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
 
 /*********************************************************************************************\
  * No user configurable items below
@@ -183,3 +191,29 @@
 #endif
 #endif
 
+#if defined(SEND_TELEMETRY_DS18x20) && defined(SEND_TELEMETRY_I2C)
+#if DSB_PIN == DI2C_SDA
+  #error "Select either SEND_TELEMETRY_DS18x20 or SEND_TELEMETRY_I2C or use different GPIOs"
+#endif
+#if DSB_PIN == DI2C_SCL
+  #error "Select either SEND_TELEMETRY_DS18x20 or SEND_TELEMETRY_I2C or use different GPIOs"
+#endif
+#endif
+
+#if defined(SEND_TELEMETRY_DS18B20) && defined(SEND_TELEMETRY_I2C)
+#if DSB_PIN == DI2C_SDA
+  #error "Select either SEND_TELEMETRY_DS18x20 or SEND_TELEMETRY_I2C or use different GPIOs"
+#endif
+#if DSB_PIN == DI2C_SCL
+  #error "Select either SEND_TELEMETRY_DS18x20 or SEND_TELEMETRY_I2C or use different GPIOs"
+#endif
+#endif
+
+#if defined(SEND_TELEMETRY_I2C) && defined(SEND_TELEMETRY_DHT)
+#if DSB_I2C_SDA == DHT_PIN
+  #error "Select either SEND_TELEMETRY_I2C or SEND_TELEMETRY_DHT or use different GPIOs"
+#endif
+#if DSB_I2C_SCL == DHT_PIN
+  #error "Select either SEND_TELEMETRY_I2C or SEND_TELEMETRY_DHT or use different GPIOs"
+#endif
+#endif
