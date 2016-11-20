@@ -1500,6 +1500,12 @@ void every_second()
       ds18x20_convert();     // Start Conversion, takes up to one second
 #endif  // SEND_TELEMETRY_DS18x20
 
+#ifdef SEND_TELEMETRY_I2C
+      Serial.print("HTU21: ");
+      if(htu21_detect()) Serial.print("detected!");
+      Serial.println();
+#endif // SEND_TELEMETRY_I2C
+
 #ifdef SEND_TELEMETRY_DHT
       dht_readPrep();
 #endif  // SEND_TELEMETRY_DHT
