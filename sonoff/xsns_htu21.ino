@@ -32,6 +32,14 @@
 #define HTU21_READREG       0xE7
 #define HTU21_RESET         0xFE
 
+uint8_t htu21_detect()
+{
+	Wire.beginTransmission(HTU21_ADDR);
+	Wire.write(0x01);
+	if(Wire.endTransmission()!=0) return 0; // No success
+	else return 1;													// Sensor found
+}
+
 //HTU21 CRC Code
 //POLYNOMIAL = 0x0131 = x^8 + x^5 + x^4 + 1 : http://en.wikipedia.org/wiki/Computation_of_cyclic_redundancy_checks
 #define HTU21_CRC_SHIFT_DIV 0x988000 //This is the 0x0131 polynomial shifted to farthest left of three bytes
