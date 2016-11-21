@@ -64,3 +64,4 @@ uint8_t check_crc(uint16_t sensor, uint8_t crc)
 }
 
 #endif //SEND_TELEMETRY_I2C
+

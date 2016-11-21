@@ -217,3 +217,4 @@
   #error "Select either SEND_TELEMETRY_I2C or SEND_TELEMETRY_DHT or use different GPIOs"
 #endif
 #endif
+
