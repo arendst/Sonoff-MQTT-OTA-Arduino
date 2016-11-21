@@ -112,8 +112,8 @@
   #define DHT_RESOLUTION       1            // Maximum number of decimals (0 - 3) showing Temperature
 //  #define SEND_TELEMETRY_DHT                // Enable sending temperature and humidity telemetry
 /*-------------------------------------------------------------------------------------------*/
-  #define DI2C_SDA             14           // GPIO 14 = SDA
-  #define DI2C_SCL             4            // GPIO  4 = SCL
+  #define DI2C_SDA             4            // GPIO  4 = SDA
+  #define DI2C_SCL             14           // GPIO 14 = SCL
   #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
 
 /*********************************************************************************************\
@@ -163,8 +163,8 @@
   #define DHT_RESOLUTION       1            // Maximum number of decimals (0 - 3) showing Temperature
 //  #define SEND_TELEMETRY_DHT                // Enable sending temperature and humidity telemetry
 /*-------------------------------------------------------------------------------------------*/
-  #define DI2C_SDA             14           // GPIO 14 = SDA
-  #define DI2C_SCL             4            // GPIO  4 = SCL
+  #define DI2C_SDA             4            // GPIO  4 = SDA
+  #define DI2C_SCL             14           // GPIO 14 = SCL
   #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
 
 /*********************************************************************************************\
