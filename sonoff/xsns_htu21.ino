@@ -36,8 +36,9 @@ uint8_t htu21_detect()
 {
 	Wire.beginTransmission(HTU21_ADDR);
 	Wire.write(0x01);
-	if(Wire.endTransmission()!=0) return 0; // No success
-	else return 1;													// Sensor found
+  uint8_t retval=Wire.endTransmission();
+	if(!retval | retval==3) return 1; // Success or NACK Data
+	else return 0;                    // NACK on Address or other Error									
 }
 
 //HTU21 CRC Code
