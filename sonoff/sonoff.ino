@@ -1508,7 +1508,7 @@ void every_second()
       if(htu21_detect() && !htu21) // Search HTU21 sensor 
       {
         htu21_init();		   // IF found initialize
-        htu21=1;		   // only once
+        htu21=1;		       // only once
       }
       else htu21=0;		   // Reset for future detection/initialization
 #endif // SEND_TELEMETRY_I2C
@@ -1624,20 +1624,24 @@ void every_second()
 #endif  // SEND_TELEMETRY_DHT
 
 #ifdef SEND_TELEMETRY_I2C
-      t=htu21_readTemperature();
-      h=htu21_readHumidity();
-      h=htu21_compensatedHumidity(h,t);
-      dtostrf(t, 1, 2, stemp1);
-      dtostrf(h, 1, 1, stemp2);
-      if (sysCfg.message_format == JSON) {
-        snprintf_P(svalue, sizeof(svalue), PSTR("%s, \"HTU21\":{\"Temperature\":\"%s\", \"Humidity\":\"%s\"}"), svalue, stemp1, stemp2);
-      } else {
-        snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/HTU21/TEMPERATURE"), PUB_PREFIX2, sysCfg.mqtt_topic);
-        snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? " C" : "");
-        mqtt_publish(stopic, svalue);
-        snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/HTU21/HUMIDITY"), PUB_PREFIX2, sysCfg.mqtt_topic);
-        snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp2, (sysCfg.mqtt_units) ? " %" : "");
-        mqtt_publish(stopic, svalue);
+      if(htu21)
+      {
+        t=htu21_readTemperature();
+        h=htu21_readHumidity();
+        h=htu21_compensatedHumidity(h,t);
+        dtostrf(t, 1, 2, stemp1);
+        dtostrf(h, 1, 1, stemp2);
+        if (sysCfg.message_format == JSON) {
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s, \"HTU21\":{\"Temperature\":\"%s\", \"Humidity\":\"%s\"}"), svalue, stemp1, stemp2);
+        } else 
+        {
+          snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/HTU21/TEMPERATURE"), PUB_PREFIX2, sysCfg.mqtt_topic);
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? " C" : "");
+          mqtt_publish(stopic, svalue);
+          snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/HTU21/HUMIDITY"), PUB_PREFIX2, sysCfg.mqtt_topic);
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp2, (sysCfg.mqtt_units) ? " %" : "");
+          mqtt_publish(stopic, svalue);
+        }
       }
 #endif // SEND_TELEMETRY_I2C
 
