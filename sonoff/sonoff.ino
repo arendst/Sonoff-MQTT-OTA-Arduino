@@ -285,6 +285,10 @@ uint8_t multipress = 0;               // Number of button presses within multiwi
   byte domoticz_update_flag;  
 #endif  // USE_DOMOTICZ 
 
+#ifdef SEND_TELEMETRY_I2C
+  uint8_t htu21 = 0;
+#endif // SEND_TELEMETRY_I2C
+
 /********************************************************************************************/
 
 void CFG_Default()
@@ -1501,9 +1505,12 @@ void every_second()
 #endif  // SEND_TELEMETRY_DS18x20
 
 #ifdef SEND_TELEMETRY_I2C
-      Serial.print("HTU21: ");
-      if(htu21_detect()) Serial.print("detected!");
-      Serial.println();
+      if(htu21_detect() && !htu21) // Search HTU21 sensor 
+      {
+        htu21_init();		   // IF found initialize
+        htu21=1;		   // only once
+      }
+      else htu21=0;		   // Reset for future detection/initialization
 #endif // SEND_TELEMETRY_I2C
 
 #ifdef SEND_TELEMETRY_DHT
@@ -1615,6 +1622,24 @@ void every_second()
         }
       }
 #endif  // SEND_TELEMETRY_DHT
+
+#ifdef SEND_TELEMETRY_I2C
+      t=htu21_readTemperature();
+      h=htu21_readHumidity();
+      h=htu21_compensatedHumidity(h,t);
+      dtostrf(t, 1, 2, stemp1);
+      dtostrf(h, 1, 1, stemp2);
+      if (sysCfg.message_format == JSON) {
+        snprintf_P(svalue, sizeof(svalue), PSTR("%s, \"HTU21\":{\"Temperature\":\"%s\", \"Humidity\":\"%s\"}"), svalue, stemp1, stemp2);
+      } else {
+        snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/HTU21/TEMPERATURE"), PUB_PREFIX2, sysCfg.mqtt_topic);
+        snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? " C" : "");
+        mqtt_publish(stopic, svalue);
+        snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/HTU21/HUMIDITY"), PUB_PREFIX2, sysCfg.mqtt_topic);
+        snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp2, (sysCfg.mqtt_units) ? " %" : "");
+        mqtt_publish(stopic, svalue);
+      }
+#endif // SEND_TELEMETRY_I2C
 
 #ifdef USE_POWERMONITOR
 #ifdef SEND_TELEMETRY_ENERGY
