@@ -57,11 +57,13 @@ void i2c_write(uint8_t reg, uint8_t val)
 
 uint8_t i2c_read(uint8_t reg)
 {
+  uint8_t data=0;
   Wire.beginTransmission(HTU21_ADDR);
   Wire.write(reg);
   Wire.endTransmission();
   Wire.requestFrom(HTU21_ADDR, 1);
-  return Wire.read();
+  if(Wire.available()) data = Wire.read();
+  return data;
 }
 
 uint8_t check_crc8(uint16_t data)
@@ -133,12 +135,15 @@ float htu21_readHumidity(void)
   Wire.beginTransmission(HTU21_ADDR);
   Wire.write(HTU21_READHUM);
   if(Wire.endTransmission() != 0) return 0.0; // In case of error
-  delay(HTU21_MAX_HUM);			      // HTU21 time at max resolution
+  delay(HTU21_MAX_HUM);			                  // HTU21 time at max resolution
 
-  sensorval = Wire.read() << 8;		      // MSB
-  sensorval |= Wire.read();		      // LSB
-  checksum = Wire.read();
-
+  Wire.requestFrom(HTU21_ADDR, 3);
+  if(3 <= Wire.available())
+  {  
+    sensorval = Wire.read() << 8;		            // MSB
+    sensorval |= Wire.read();		                // LSB
+    checksum = Wire.read();
+  }
   if(check_crc8(sensorval) != checksum) return 0.0; // Checksum mismatch
 
   sensorval ^= 0x02;      // clear status bits
@@ -159,11 +164,14 @@ float htu21_readTemperature(void)
   Wire.write(HTU21_READTEMP);
   if(Wire.endTransmission() != 0) return 0.0; // In case of error
   delay(HTU21_MAX_TEMP);		      // HTU21 time at max resolution
-
-  sensorval = Wire.read() << 8;		      // MSB
-  sensorval |= Wire.read();		      // LSB
-  checksum = Wire.read();
-
+  
+  Wire.requestFrom(HTU21_ADDR, 3);
+  if(3 <= Wire.available())
+  {  
+    sensorval = Wire.read() << 8;		      // MSB
+    sensorval |= Wire.read();		      // LSB
+    checksum = Wire.read();
+  }
   if(check_crc8(sensorval) != checksum) return 0.0; // Checksum mismatch
 
   return (0.002681 * (float)sensorval - 46.85);
