@@ -1,4 +1,7 @@
-/* 2.0.16
+/* 2.0.17
+ * Add I2C sensor driver for HTU21 as alternate sensor using TH10/16 connectors 
+ *
+ * 2.0.16
  * Add alternative sensor driver DS18x20 using OneWire library
  * Change sensor MQTT message from tele/sonoff/TEMPERATURE to tele/sonoff/DHT/TEMPERATURE or
  *   tele/sonoff/DS18B20/TEMPERATURE or tele/sonoff/DS18x20/1/TEMPERATURE

@@ -1,27 +1,27 @@
 /*
-	 Copyright (c) 2016 Heiko Krupp.  All rights reserved.
+ Copyright (c) 2016 Heiko Krupp.  All rights reserved.
 
-	 Redistribution and use in source and binary forms, with or without
-	 modification, are permitted provided that the following conditions are met:
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
 
-	 - Redistributions of source code must retain the above copyright notice,
-	   this list of conditions and the following disclaimer.
-		 - Redistributions in binary form must reproduce the above copyright notice,
-		   this list of conditions and the following disclaimer in the documentation
-			   and/or other materials provided with the distribution.
+ - Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+ - Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
 
-				 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-				 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-				 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-				 ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-				 LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-				 CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-				 SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-				 INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-				 CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-				 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-				 POSSIBILITY OF SUCH DAMAGE.
-				 */
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ POSSIBILITY OF SUCH DAMAGE.
+*/
 
 #ifdef SEND_TELEMETRY_I2C
 
@@ -31,37 +31,149 @@
 #define HTU21_WRITEREG      0xE6
 #define HTU21_READREG       0xE7
 #define HTU21_RESET         0xFE
+#define HTU21_HEATER_WRITE  0x51
+#define HTU21_HEATER_READ   0x11
+
+#define HTU21_HEATER_ON     0x04
+#define HTU21_HEATER_OFF    0xFB
+
+#define HTU21_RES_RH12_T14  0x00	// Default
+#define HTU21_RES_RH8_T12   0x01
+#define HTU21_RES_RH10_T13  0x80
+#define HTU21_RES_RH11_T11  0x81
+
+#define HTU21_MAX_HUM       16		// 16ms max time
+#define HTU21_MAX_TEMP      50		// 50ms max time
+
+#define HTU21_CRC8_POLYNOM  0x13100
+
+void i2c_write(uint8_t reg, uint8_t val)
+{
+  Wire.beginTransmission(HTU21_ADDR);
+  Wire.write(reg);
+  Wire.write(val);
+  Wire.endTransmission();
+}
+
+uint8_t i2c_read(uint8_t reg)
+{
+  Wire.beginTransmission(HTU21_ADDR);
+  Wire.write(reg);
+  Wire.endTransmission();
+  Wire.requestFrom(HTU21_ADDR, 1);
+  return Wire.read();
+}
+
+uint8_t check_crc8(uint16_t data)
+{
+  for (uint8_t bit = 0; bit < 16; bit++)
+  {
+    if (data & 0x8000)
+      data =  (data << 1) ^ HTU21_CRC8_POLYNOM;
+    else
+      data <<= 1;
+  }
+  return data >>= 8;
+}
 
 uint8_t htu21_detect()
 {
-	Wire.beginTransmission(HTU21_ADDR);
-	Wire.write(0x01);
+  Wire.beginTransmission(HTU21_ADDR);
+  Wire.write(0x01);		    // Write invalid Data to Address
   uint8_t retval=Wire.endTransmission();
-	if(!retval | retval==3) return 1; // Success or NACK Data
-	else return 0;                    // NACK on Address or other Error									
+  if(!retval | retval==3) return 1; // Success or NACK Data
+  else return 0;                    // NACK on Address or other Error
 }
 
-//HTU21 CRC Code
-//POLYNOMIAL = 0x0131 = x^8 + x^5 + x^4 + 1 : http://en.wikipedia.org/wiki/Computation_of_cyclic_redundancy_checks
-#define HTU21_CRC_SHIFT_DIV 0x988000 //This is the 0x0131 polynomial shifted to farthest left of three bytes
-
-uint8_t check_crc(uint16_t sensor, uint8_t crc)
+void htu21_setRes(uint8_t resolution)
 {
-  uint32_t remainder = (uint32_t)sensor << 8; //Pad with 8 bits because we have to add in the check value
-  uint32_t divisor = (uint32_t)HTU21_CRC_SHIFT_DIV;
+  uint8_t current = i2c_read(HTU21_READREG);
+  current &= 0x7E;                  // Replace current resolution bits with 0
+  current |= resolution;            // Add new resolution bits to register
+  i2c_write(HTU21_WRITEREG, current);
+}
+
+void htu21_reset(void)
+{
+  Wire.beginTransmission(HTU21_ADDR);
+  Wire.write(HTU21_RESET);
+  Wire.endTransmission();
+  delay(15);			    // Reset takes 15ms
+}
+
+void htu21_heater(uint8_t heater)
+{
+  uint8_t current = i2c_read(HTU21_READREG);
   
-  remainder |= crc; //Add on the check value
-
-  for (int i = 0 ; i < 16 ; i++) //Operate on only 16 positions of max 24. The remaining 8 are our remainder and should be zero when we're done.
+  switch(heater)
   {
-    if( remainder & (uint32_t)1<<(23 - i) ) //Check if there is a one in the left position
-      remainder ^= divisor;
-
-    divisor >>= 1; //Rotate the divsor max 16 times so that we have 8 bits left of a remainder
+    case HTU21_HEATER_ON  : current |= heater;
+                            break;
+    case HTU21_HEATER_OFF : current &= heater;
+                            break;
+    default               : current &= heater;
+                            break;
   }
+  i2c_write(HTU21_WRITEREG, current);
+}
 
-  return (uint8_t)remainder;
+void htu21_init()
+{
+  htu21_reset();
+  htu21_heater(HTU21_HEATER_OFF);
+  htu21_setRes(HTU21_RES_RH12_T14);
+}
+
+float htu21_readHumidity(void)
+{
+  uint8_t  checksum=0;
+  uint16_t sensorval=0;
+  float    humidity=0.0;
+  
+  Wire.beginTransmission(HTU21_ADDR);
+  Wire.write(HTU21_READHUM);
+  if(Wire.endTransmission() != 0) return 0.0; // In case of error
+  delay(HTU21_MAX_HUM);			      // HTU21 time at max resolution
+
+  sensorval = Wire.read() << 8;		      // MSB
+  sensorval |= Wire.read();		      // LSB
+  checksum = Wire.read();
+
+  if(check_crc8(sensorval) != checksum) return 0.0; // Checksum mismatch
+
+  sensorval ^= 0x02;      // clear status bits
+  humidity = 0.001907 * (float)sensorval - 6;
+
+  if(humidity>100) return 100.0;
+  if(humidity<0) return 0.01;
+
+  return humidity;
+}
+
+float htu21_readTemperature(void)
+{
+  uint8_t  checksum=0;
+  uint16_t sensorval=0;
+
+  Wire.beginTransmission(HTU21_ADDR);
+  Wire.write(HTU21_READTEMP);
+  if(Wire.endTransmission() != 0) return 0.0; // In case of error
+  delay(HTU21_MAX_TEMP);		      // HTU21 time at max resolution
+
+  sensorval = Wire.read() << 8;		      // MSB
+  sensorval |= Wire.read();		      // LSB
+  checksum = Wire.read();
+
+  if(check_crc8(sensorval) != checksum) return 0.0; // Checksum mismatch
+
+  return (0.002681 * (float)sensorval - 46.85);
+}
+
+float htu21_compensatedHumidity(float humidity, float temperature)
+{
+  if(humidity == 0.00 && temperature == 0.00) return 0.0;
+  if(temperature > 0.00 && temperature < 80.00)
+    return (-0.15)*(25-temperature)+humidity;
 }
 
 #endif //SEND_TELEMETRY_I2C
-
