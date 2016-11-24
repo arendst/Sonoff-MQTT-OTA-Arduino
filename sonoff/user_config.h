@@ -24,7 +24,7 @@
 #define SYS_LOG_HOST           "syslog"
 #define SYS_LOG_PORT           514
 #define SYS_LOG_LEVEL          LOG_LEVEL_NONE
-#define SERIAL_LOG_LEVEL       LOG_LEVEL_INFO
+#define SERIAL_LOG_LEVEL       LOG_LEVEL_DEBUG
 #define WEB_LOG_LEVEL          LOG_LEVEL_INFO
 
 // Ota
@@ -108,7 +108,7 @@
   // *** Option 1 - Single DS18B20 - Select either Option 1 OR Option 2
 //  #define SEND_TELEMETRY_DS18B20            // Enable sending single temperature telemetry
   // *** Option 2 - Multiple DS18B20 and/or DS18S20 (needs OneWire library!)
-  #define SEND_TELEMETRY_DS18x20            // Enable sending multi temperature telemetry 
+//  #define SEND_TELEMETRY_DS18x20            // Enable sending multi temperature telemetry 
 /*-------------------------------------------------------------------------------------------*/
   #define DHT_PIN              14           // GPIO 14 = AM2301 (Sonoff_TH10A(16A), Sonoff SV)
   #define DHT_TYPE             AM2301       // DHT module type (DHT11, DHT21, DHT22, AM2301, AM2302 or AM2321)
@@ -117,7 +117,7 @@
 /*-------------------------------------------------------------------------------------------*/
   #define DI2C_SDA             4            // GPIO  4 = SDA
   #define DI2C_SCL             14           // GPIO 14 = SCL
-//  #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
+  #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
 
 /*********************************************************************************************\
  * Sonoff Pow specific parameters
