@@ -10,18 +10,18 @@
 #define PROJECT                "sonoff"     // PROJECT is used as the default topic delimiter and OTA file name
                                             // As an IDE restriction it needs to be the same as the main .ino file
                                             
-#define CFG_HOLDER             0x20160520   // Change this value to load default configuration parameters
+#define CFG_HOLDER             0x20161125   // Change this value to load default configuration parameters
 #define SAVE_DATA              1            // Save changed parameters to Flash (0 = disable, 1 - 3600 seconds)
 #define SAVE_STATE             1            // Save changed power state to Flash (0 = disable, 1 = enable)
 
 // Wifi
-#define STA_SSID               "indebuurt3"      // Wifi SSID
-#define STA_PASS               "VnsqrtnrsddbrN"  // Wifi password
+#define STA_SSID               "TU-KL_guest"     // Wifi SSID
+#define STA_PASS               ""                // Wifi password
 #define WIFI_HOSTNAME          "%s-%04d"         // Expands to <MQTT_TOPIC>-<last 4 decimal chars of MAC address>
 #define WIFI_CONFIG_TOOL       WIFI_WPSCONFIG    // Default tool if wifi fails to connect (WIFI_SMARTCONFIG, WIFI_MANAGER or WIFI_WPSCONFIG)
 
 // Syslog
-#define SYS_LOG_HOST           "domus1"
+#define SYS_LOG_HOST           "syslog"
 #define SYS_LOG_PORT           514
 #define SYS_LOG_LEVEL          LOG_LEVEL_NONE
 #define SERIAL_LOG_LEVEL       LOG_LEVEL_INFO
@@ -29,13 +29,13 @@
 
 // Ota
 #if (ARDUINO >= 168)
-  #define OTA_URL              "http://domus1:80/api/arduino/" PROJECT ".ino.bin"
+  #define OTA_URL              "http://web:80/api/arduino/" PROJECT ".ino.bin"
 #else
-  #define OTA_URL              "http://domus1:80/api/arduino/" PROJECT ".cpp.bin"
+  #define OTA_URL              "http://web:80/api/arduino/" PROJECT ".cpp.bin"
 #endif
 
 // MQTT
-#define MQTT_HOST              "domus1"
+#define MQTT_HOST              "status.uni-kl.de"
 #define MQTT_PORT              1883
 
 #define MQTT_CLIENT_ID         "DVES_%06X"  // Also fall back topic using Chip Id = last 6 characters of MAC address
@@ -63,7 +63,7 @@
 #define DOMOTICZ_UPDATE_TIMER  0            // Send relay status (0 = disable, 1 - 3600 seconds) (Optional)
 
 // MQTT - Telemetry
-#define TELE_PERIOD            300          // Telemetry (0 = disable, 10 - 3600 seconds)
+#define TELE_PERIOD            15           // Telemetry (0 = disable, 10 - 3600 seconds)
 #define SEND_TELEMETRY_UPTIME               // Enable sending uptime telemetry (if disabled will still send hourly message)
 #define SEND_TELEMETRY_RSSI                 // Enable sending wifi RSSI telemetry
 #define SEND_TELEMETRY_POWER                // Enable sending power telemetry
@@ -72,8 +72,11 @@
 #define USE_WEBSERVER                       // Enable web server and wifi manager (+37k code, +2k mem) - Disable by //
 #define WEB_SERVER             2            // Web server (0 = Off, 1 = Start as User, 2 = Start as Admin)
 
+// WeMo
+#define FAKE_WEMO                           // Enable Belkin WeMo PowerSwitch emulation
+
 // Time - Up to three NTP servers in your region
-#define NTP_SERVER1            "pool.ntp.org"
+#define NTP_SERVER1            "ntp.rhrk.uni-kl.de"
 #define NTP_SERVER2            "nl.pool.ntp.org"
 #define NTP_SERVER3            "0.nl.pool.ntp.org"
 
@@ -105,7 +108,7 @@
   // *** Option 1 - Single DS18B20 - Select either Option 1 OR Option 2
 //  #define SEND_TELEMETRY_DS18B20            // Enable sending single temperature telemetry
   // *** Option 2 - Multiple DS18B20 and/or DS18S20 (needs OneWire library!)
-//  #define SEND_TELEMETRY_DS18x20            // Enable sending multi temperature telemetry 
+  #define SEND_TELEMETRY_DS18x20            // Enable sending multi temperature telemetry 
 /*-------------------------------------------------------------------------------------------*/
   #define DHT_PIN              14           // GPIO 14 = AM2301 (Sonoff_TH10A(16A), Sonoff SV)
   #define DHT_TYPE             AM2301       // DHT module type (DHT11, DHT21, DHT22, AM2301, AM2302 or AM2321)
@@ -114,7 +117,7 @@
 /*-------------------------------------------------------------------------------------------*/
   #define DI2C_SDA             4            // GPIO  4 = SDA
   #define DI2C_SCL             14           // GPIO 14 = SCL
-  #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
+//  #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
 
 /*********************************************************************************************\
  * Sonoff Pow specific parameters
@@ -165,7 +168,7 @@
 /*-------------------------------------------------------------------------------------------*/
   #define DI2C_SDA             4            // GPIO  4 = SDA
   #define DI2C_SCL             14           // GPIO 14 = SCL
-  #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
+//  #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
 
 /*********************************************************************************************\
  * No user configurable items below

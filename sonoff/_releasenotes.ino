@@ -1,4 +1,7 @@
-/* 2.0.17
+/* 2.0.18
+ * First implementation of fake Belkin WeMo PowerPlug emulation mode  
+ * 
+ * 2.0.17
  * Add I2C sensor driver for HTU21 as alternate sensor using TH10/16 connectors 
  *
  * 2.0.16
