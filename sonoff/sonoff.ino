@@ -252,6 +252,13 @@ WiFiClient espClient;                 // Wifi Client
 PubSubClient mqttClient(espClient);   // MQTT Client
 WiFiUDP portUDP;                      // UDP Syslog
 
+#ifdef FAKE_WEMO                            // Fake Belkin WeMo PowerSwitch
+char packetBuffer[UDP_TX_PACKET_MAX_SIZE];  // buffer to hold incoming UDP packet
+boolean udpConnected = false;
+IPAddress ipMulticast(239, 255, 255, 250);  // Simple Service Discovery Protocol (SSDP) 
+uint32_t portMulticast =1900;               // Multicast address and port
+#endif // FAKE_WEMO
+
 uint8_t power;                        // Current copy of sysCfg.power
 byte syslog_level;                    // Current copy of sysCfg.syslog_level
 uint16_t syslog_timer = 0;            // Timer to re-enable syslog_level
