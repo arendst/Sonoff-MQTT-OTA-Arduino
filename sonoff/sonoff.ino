@@ -2028,6 +2028,9 @@ void loop()
 #ifdef USE_WEBSERVER
   pollDnsWeb();
 #endif  // USE_WEBSERVER
+#ifdef FAKE_WEMO
+  pollUDP();
+#endif // FAKE_WEMO
 
   if (millis() >= timerxs) stateloop();
 

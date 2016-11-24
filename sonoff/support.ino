@@ -433,55 +433,26 @@ boolean UDP_Connect(){
 void pollUDP()
 {
   if (udpConnected)
-  {
-    int packetSize = portUDP.parsePacket();
-      
-    if(packetSize)
+  {   
+    if(portUDP.parsePacket())
     {
-      Serial.println("");
-      Serial.print("Received packet of size ");
-      Serial.println(packetSize);
-      Serial.print("From ");
-      IPAddress remote = portUDP.remoteIP();
-        
-      for (int i =0; i < 4; i++) 
-      {
-        Serial.print(remote[i], DEC);
-        if (i < 3) {
-          Serial.print(".");
-        }
-      }
-        
-      Serial.print(", port ");
-      Serial.println(portUDP.remotePort());
-        
       int len = portUDP.read(packetBuffer, 255);
-        
       if (len > 0) packetBuffer[len] = 0;
-
       String request = packetBuffer;
-         
       if(request.indexOf('M-SEARCH') > 0)
       {
         if(request.indexOf("urn:Belkin:device:**") > 0)
         {
-          Serial.println("Responding to search request ...");
+          addLog_P(LOG_LEVEL_DEBUG, PSTR("Responding to search request ..."));
           respondToMSearch();
         }
       }        
-      delay(10);
      }
   }
 }
 
 void respondToMSearch()
 {
-  Serial.println("");
-  Serial.print("Sending response to ");
-  Serial.println(portUDP.remoteIP());
-  Serial.print("Port : ");
-  Serial.println(portUDP.remotePort());
-
   IPAddress localIP = WiFi.localIP();
   char s[16];
   sprintf(s, "%d.%d.%d.%d", localIP[0], localIP[1], localIP[2], localIP[3]);
@@ -503,7 +474,7 @@ void respondToMSearch()
   portUDP.write(response.c_str());
   portUDP.endPacket();                    
 
-  Serial.println("Response sent !");
+  addLog_P(LOG_LEVEL_DEBUG, PSTR("UPnP: Response sent!"));
 }
 
 String prepareUUID() 
