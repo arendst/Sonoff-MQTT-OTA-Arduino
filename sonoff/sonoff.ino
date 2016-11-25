@@ -945,6 +945,14 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
         snprintf_P(svalue, sizeof(svalue), PSTR("1 to start smartconfig, 2 to start wifimanager, 3 to start wpsconfig. Default is %d"), sysCfg.sta_config);
       }
     }
+#ifdef USE_WALL_SWITCH
+    else if (!strcmp(type,"SWITCHMODE")) {
+      if ((data_len > 0) && (payload >= 0) && (payload <= 2)) {
+        sysCfg.switchmode = payload;
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("%d"), sysCfg.switchmode);
+    }
+#endif  // USE_WALL_SWITCH
 #ifdef USE_WEBSERVER
     else if (!strcmp(type,"WEBSERVER")) {
       if ((data_len > 0) && (payload >= 0) && (payload <= 2)) {
@@ -962,15 +970,7 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
         sysCfg.weblog_level = payload;
       }
       snprintf_P(svalue, sizeof(svalue), PSTR("%d"), sysCfg.weblog_level);
-    }
-#ifdef USE_WALL_SWITCH
-    else if (!strcmp(type,"SWITCHMODE")) {
-      if ((data_len > 0) && (payload >= 0) && (payload <= 2)) {
-        sysCfg.switchmode = payload;
-      }
-      snprintf_P(svalue, sizeof(svalue), PSTR("%d"), sysCfg.switchmode);
-    }
-#endif  // USE_WALL_SWITCH 
+    } 
 #endif  // USE_WEBSERVER
     else if (!strcmp(type,"MQTTHOST")) {
       if ((data_len > 0) && (data_len < sizeof(sysCfg.mqtt_host))) {
