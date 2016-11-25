@@ -10,7 +10,7 @@
  * ====================================================
 */
 
-#define VERSION                0x02001100   // 2.0.17
+#define VERSION                0x02001200   // 2.0.18
 
 #define SONOFF                 1            // Sonoff, Sonoff SV, Sonoff Dual, Sonoff TH 10A/16A, S20 Smart Socket, 4 Channel
 #define SONOFF_POW             9            // Sonoff Pow
@@ -29,6 +29,7 @@ enum dow_t   {Sun=1, Mon, Tue, Wed, Thu, Fri, Sat};
 enum month_t {Jan=1, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec};
 enum wifi_t  {WIFI_STATUS, WIFI_SMARTCONFIG, WIFI_MANAGER, WIFI_WPSCONFIG};
 enum msgf_t  {LEGACY, JSON, MAX_FORMAT};
+enum switch_t {TOGGLE, FOLLOW, FOLLOW_INV};
 
 #include "user_config.h"
 
@@ -150,6 +151,7 @@ struct SYSCFG {
   int8_t        timezone;
   uint8_t       power;
   uint8_t       ledstate;
+  uint8_t       switchmode;
   uint16_t      mqtt_port;
   char          mqtt_client[33];
   char          mqtt_user[33];
@@ -281,6 +283,11 @@ uint8_t multipress = 0;               // Number of button presses within multiwi
   byte domoticz_update_flag;  
 #endif  // USE_DOMOTICZ 
 
+#ifdef USE_WALL_SWITCH
+  uint8_t lastwallswitch = 0;           // Last wall switch state
+#endif  // USE_WALL_SWITCH
+
+
 /********************************************************************************************/
 
 void CFG_Default()
@@ -332,6 +339,7 @@ void CFG_Default()
   sysCfg.timezone = APP_TIMEZONE;
   sysCfg.power = APP_POWER;
   sysCfg.ledstate = APP_LEDSTATE;
+  sysCfg.switchmode = SWITCH_MODE;
   sysCfg.webserver = WEB_SERVER;
   sysCfg.model = 0;
   sysCfg.hlw_pcal = HLW_PREF_PULSE;
@@ -438,6 +446,9 @@ void CFG_Delta()
       if ((sysCfg.tele_period > 0) && (sysCfg.tele_period < 10)) sysCfg.tele_period = 10;   // Do not allow periods < 10 seconds
       sysCfg.hlw_kWhtoday = 0;
       sysCfg.hlw_kWhdoy = 0;
+    }
+    if (sysCfg.version < 0x02001200) {  // 2.0.18 - Add wall switch feature
+      sysCfg.switchmode = SWITCH_MODE;
     }
     
     sysCfg.version = VERSION;
@@ -934,6 +945,14 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
         snprintf_P(svalue, sizeof(svalue), PSTR("1 to start smartconfig, 2 to start wifimanager, 3 to start wpsconfig. Default is %d"), sysCfg.sta_config);
       }
     }
+#ifdef USE_WALL_SWITCH
+    else if (!strcmp(type,"SWITCHMODE")) {
+      if ((data_len > 0) && (payload >= 0) && (payload <= 2)) {
+        sysCfg.switchmode = payload;
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("%d"), sysCfg.switchmode);
+    }
+#endif  // USE_WALL_SWITCH
 #ifdef USE_WEBSERVER
     else if (!strcmp(type,"WEBSERVER")) {
       if ((data_len > 0) && (payload >= 0) && (payload <= 2)) {
@@ -951,7 +970,7 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
         sysCfg.weblog_level = payload;
       }
       snprintf_P(svalue, sizeof(svalue), PSTR("%d"), sysCfg.weblog_level);
-    }
+    } 
 #endif  // USE_WEBSERVER
     else if (!strcmp(type,"MQTTHOST")) {
       if ((data_len > 0) && (data_len < sizeof(sysCfg.mqtt_host))) {
@@ -1766,7 +1785,28 @@ void stateloop()
     state = 0;
     every_second();
   }
-
+  
+#ifdef USE_WALL_SWITCH
+  uint8_t wallswitch;
+  wallswitch = digitalRead(SWITCH_PIN);
+  
+  if (wallswitch != lastwallswitch) {
+    if (sysCfg.switchmode == TOGGLE) {
+      do_cmnd_power(1, 2);                      // Execute command internally, 2 toggle
+    }
+    
+    if (sysCfg.switchmode == FOLLOW) {
+      do_cmnd_power(1, (wallswitch & 0x01));    // execute command internally, follow wall switch state
+    }
+    
+    if (sysCfg.switchmode == FOLLOW_INV) {
+      do_cmnd_power(1, (~wallswitch & 0x01));   // execute command internally, follow wall switch state
+    }    
+    
+    lastwallswitch = wallswitch;
+  }
+#endif // USE_WALL_SWITCH
+  
   if ((sysCfg.model >= SONOFF_DUAL) && (sysCfg.model <= CHANNEL_4)) {
     if (ButtonCode) {
       snprintf_P(log, sizeof(log), PSTR("APP: Button code %04X"), ButtonCode);
@@ -2044,6 +2084,11 @@ void setup()
   if (sysCfg.savestate) setRelay(power);
 
   rtc_init(every_second_cb);
+
+#ifdef USE_WALL_SWITCH
+  pinMode(SWITCH_PIN, INPUT);                   // set pin to input, fitted with external pull up on Sonoff TH10/16 baord                        
+  lastwallswitch = digitalRead(SWITCH_PIN);     // set global now so doesn't change the saved power state on first switch check
+#endif  // USE_WALL_SWITCH
 
 #if defined(SEND_TELEMETRY_DHT) || defined(SEND_TELEMETRY_DHT2)
   dht_init();

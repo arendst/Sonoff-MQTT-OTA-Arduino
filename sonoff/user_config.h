@@ -115,6 +115,11 @@
 //  #define SEND_TELEMETRY_DHT                // Enable sending temperature and humidity telemetry
   // *** Option 2 - Use Adafruit DHT library - Select either Option 1 OR Option 2
 //  #define SEND_TELEMETRY_DHT2               // Enable sending temperature and humidity telemetry
+/*-------------------------------------------------------------------------------------------*/
+  #define SWITCH_PIN           14           // GPIO 14 = standard wall switch (Sonoff_TH10A(16A), Sonoff SV)
+  #define SWITCH_MODE          TOGGLE       // TOGGLE, FOLLOW or FOLLOW_INV (the wall switch state)
+  #define USE_WALL_SWITCH                   // Enable the use of a standard wall switch to control the relay
+/*-------------------------------------------------------------------------------------------*/
   
 /*********************************************************************************************\
  * Sonoff Pow specific parameters
@@ -182,9 +187,9 @@
   #error "Select either SEND_TELEMETRY_DHT or SEND_TELEMETRY_DHT2"
 #endif
 
-#if (defined(SEND_TELEMETRY_DS18B20) || defined(SEND_TELEMETRY_DS18x20)) && (defined(SEND_TELEMETRY_DHT) || defined(SEND_TELEMETRY_DHT2))
-#if DSB_PIN == DHT_PIN
-  #error "Select either DS18B20 or DHT or use different GPIOs"
+#if (((defined(SEND_TELEMETRY_DS18B20) || defined(SEND_TELEMETRY_DS18x20)) && defined(USE_WALL_SWITCH)) || ((defined(SEND_TELEMETRY_DHT) || defined(SEND_TELEMETRY_DHT2)) && defined(USE_WALL_SWITCH)) || ((defined(SEND_TELEMETRY_DS18B20) || defined(SEND_TELEMETRY_DS18x20)) && (defined(SEND_TELEMETRY_DHT) || defined(SEND_TELEMETRY_DHT2))))
+#if ((DSB_PIN == DHT_PIN) || (DSB_PIN == SWITCH_PIN) || (DHT_PIN == SWITCH_PIN))
+  #error "Select either DS18B20 or DHT or WALL SWITCH or use different GPIOs"
 #endif
 #endif
 

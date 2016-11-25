@@ -1,4 +1,7 @@
-/* 2.0.17
+/* 2.0.18
+ * Added wall switch function to GPIO14
+ *
+ * 2.0.17
  * Calibrate HLWPCAL from 12345 to 12530
  * Add alternative sensor driver DHT2 using Adafruit DHT library
  * Add define MESSAGE_FORMAT to user_config.h
