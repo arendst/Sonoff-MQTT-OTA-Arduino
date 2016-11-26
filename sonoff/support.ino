@@ -439,7 +439,7 @@ void pollUDP()
       int len = portUDP.read(packetBuffer, 255);
       if (len > 0) packetBuffer[len] = 0;
       String request = packetBuffer;
-      if(request.indexOf('M-SEARCH') > 0)
+      if(request.indexOf("M-SEARCH") > 0)
       {
         if(request.indexOf("urn:Belkin:device:**") > 0)
         {
@@ -462,12 +462,12 @@ void respondToMSearch()
          "CACHE-CONTROL: max-age=86400\r\n"
          "DATE: Fri, 15 Apr 2016 04:56:29 GMT\r\n"
          "EXT:\r\n"
-         "LOCATION: http://" + String(s) + ":80/setup.xml\r\n"
+         "LOCATION: http://"+ String(s) +":80/setup.xml\r\n"
          "OPT: \"http://schemas.upnp.org/upnp/1/0/\"; ns=01\r\n"
          "01-NLS: b9200ebb-736d-4b93-bf03-835149d13983\r\n"
          "SERVER: Unspecified, UPnP/1.0, Unspecified\r\n"
          "ST: urn:Belkin:device:**\r\n"
-         "USN: uuid:" + prepareUUID() + "::urn:Belkin:device:**\r\n"
+         "USN: uuid:"+ prepareUUID() +"::urn:Belkin:device:**\r\n"
          "X-User-Agent: redsonic\r\n\r\n";
 
   portUDP.beginPacket(portUDP.remoteIP(), portUDP.remotePort());

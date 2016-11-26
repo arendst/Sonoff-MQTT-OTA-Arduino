@@ -318,8 +318,6 @@ void handleRoot()
   } else {
     
     String page = FPSTR(HTTP_HEAD);
-//    page.replace("<meta", "<meta http-equiv=\"refresh\" content=\"4; URL=/\"><meta");                    // Fails Edge (asks for reload)
-//    page.replace("</script>", "setTimeout(function(){window.location.reload(1);},4000);</script>");     // Repeats POST on All
     page.replace("</script>", "setTimeout(function(){window.location.replace(\"/\");},4000);</script>");  // OK on All
     page.replace("{v}", "Main menu");
 
@@ -973,8 +971,6 @@ void handleUPnPevent()
 {
   addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo basic event"));
   String request = webServer->arg(0);
-  Serial.print("request:");
-  Serial.println(request);
 
   if(request.indexOf("<BinaryState>1</BinaryState>") > 0)
   {
@@ -994,7 +990,7 @@ void handleUPnPservice()
 {
   addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo event service"));
 
-  String eventservice_xml = "<?scpd xmlns=\"urn:Belkin:service-1-0\"?>"
+  String eventservice_xml = F("<?scpd xmlns=\"urn:Belkin:service-1-0\"?>"
             "<actionList>"
               "<action>"
                 "<name>SetBinaryState</name>"
@@ -1020,7 +1016,7 @@ void handleUPnPservice()
                 "</serviceStateTable>"
               "</action>"
             "</scpd>\r\n"
-            "\r\n";
+            "\r\n");
             
   webServer->send(200, "text/plain", eventservice_xml.c_str()); 
 }
@@ -1107,5 +1103,3 @@ boolean isIp(String str)
 }
 
 #endif  // USE_WEBSERVER
-
-
