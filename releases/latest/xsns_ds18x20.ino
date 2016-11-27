@@ -146,4 +146,3 @@ boolean ds18x20_read(uint8_t sensor, float &t)
   return (!isnan(t));
 }
 #endif  // SEND_TELEMETRY_DS18x20
-

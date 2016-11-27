@@ -1,7 +1,6 @@
 /* 2.0.18 20161126
  * Add SUB_PREFIX multi level support allowing 'cmnd' or 'cmnd/level2/level3'
  * Add wall switch function to GPIO14 and command SwitchMode (Alex Scott)
- * First implementation of fake Belkin WeMo PowerPlug emulation mode  
  * 
  * 2.0.17 20161123
  * Calibrate HLWPCAL from 12345 to 12530
@@ -11,7 +10,6 @@
  * Shorten JSON messages
  * Fix possible Panic
  * Fix User mode webserver security
- * Add I2C sensor driver for HTU21 as alternate sensor using TH10/16 connectors 
  * 
  * 2.0.16 20161118
  * Add alternative sensor driver DS18x20 using OneWire library
@@ -306,4 +304,3 @@
  * Initial public release
  * Show debug info by selecting option from IDE Tools Debug port: Serial
  */
-
