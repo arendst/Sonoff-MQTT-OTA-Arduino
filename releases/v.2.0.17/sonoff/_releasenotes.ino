@@ -1,9 +1,4 @@
-/* 2.0.18 20161126
- * Add SUB_PREFIX multi level support allowing 'cmnd' or 'cmnd/level2/level3'
- * Add wall switch function to GPIO14 and command SwitchMode (Alex Scott)
- * First implementation of fake Belkin WeMo PowerPlug emulation mode  
- * 
- * 2.0.17 20161123
+/* 2.0.17
  * Calibrate HLWPCAL from 12345 to 12530
  * Add alternative sensor driver DHT2 using Adafruit DHT library
  * Add define MESSAGE_FORMAT to user_config.h
@@ -11,9 +6,8 @@
  * Shorten JSON messages
  * Fix possible Panic
  * Fix User mode webserver security
- * Add I2C sensor driver for HTU21 as alternate sensor using TH10/16 connectors 
  * 
- * 2.0.16 20161118
+ * 2.0.16
  * Add alternative sensor driver DS18x20 using OneWire library
  * Change sensor MQTT message from tele/sonoff/TEMPERATURE to tele/sonoff/DHT/TEMPERATURE or
  *   tele/sonoff/DS18B20/TEMPERATURE or tele/sonoff/DS18x20/1/TEMPERATURE
@@ -23,7 +17,7 @@
  * Fix Energy Yesterday reset after restart
  * Add Energy Today restore after controlled restart
  * 
- * 2.0.15 20161116
+ * 2.0.15
  * Change TODAY_POWER and PERIOD_POWER to TODAY_ENERGY and PERIOD_ENERGY
  * Fix serial regression
  * Fix syslog hangs when loghost is unavailable
@@ -306,4 +300,3 @@
  * Initial public release
  * Show debug info by selecting option from IDE Tools Debug port: Serial
  */
-

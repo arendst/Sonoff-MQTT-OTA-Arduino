@@ -10,7 +10,7 @@
  * ====================================================
 */
 
-#define VERSION                0x02001200   // 2.0.18
+#define VERSION                0x02001100   // 2.0.17
 
 #define SONOFF                 1            // Sonoff, Sonoff SV, Sonoff Dual, Sonoff TH 10A/16A, S20 Smart Socket, 4 Channel
 #define SONOFF_POW             9            // Sonoff Pow
@@ -29,7 +29,6 @@ enum dow_t   {Sun=1, Mon, Tue, Wed, Thu, Fri, Sat};
 enum month_t {Jan=1, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec};
 enum wifi_t  {WIFI_STATUS, WIFI_SMARTCONFIG, WIFI_MANAGER, WIFI_WPSCONFIG};
 enum msgf_t  {LEGACY, JSON, MAX_FORMAT};
-enum swtch_t {TOGGLE, FOLLOW, FOLLOW_INV};
 
 #include "user_config.h"
 
@@ -64,16 +63,6 @@ enum swtch_t {TOGGLE, FOLLOW, FOLLOW_INV};
 #define CHANNEL_7              7            // Future use
 #define CHANNEL_8              8            // Future use
 
-#ifndef DSB_RESOLUTION
-#define DSB_RESOLUTION         1            // Maximum number of decimals (0 - 3)
-#endif
-#ifndef DHT_RESOLUTION
-#define DHT_RESOLUTION         1            // Maximum number of decimals (0 - 3)
-#endif
-#ifndef SWITCH_MODE
-#define SWITCH_MODE            TOGGLE       // TOGGLE, FOLLOW or FOLLOW_INV (the wall switch state)
-#endif
-
 #define DEF_WIFI_HOSTNAME      "%s-%04d"    // Expands to <MQTT_TOPIC>-<last 4 decimal chars of MAC address>
 #define DEF_MQTT_CLIENT_ID     "DVES_%06X"  // Also fall back topic using Chip Id = last 6 characters of MAC address
 
@@ -104,6 +93,10 @@ enum swtch_t {TOGGLE, FOLLOW, FOLLOW_INV};
   #define MAX_STATUS           7
 #endif
 
+#ifndef DSB_RESOLUTION
+#define DSB_RESOLUTION         1            // Maximum number of decimals (0 - 3)
+#endif
+
 #define DOMOTICZ_RELAY_IDX3    0            // Relay 3 (4 Channel)
 #define DOMOTICZ_RELAY_IDX4    0            // Relay 4 (4 Channel)
 #define DOMOTICZ_KEY_IDX3      0            // Button 3 (4 Channel)
@@ -124,9 +117,6 @@ enum butt_t {PRESSED, NOT_PRESSED};
 #ifdef USE_SPIFFS
   #include <FS.h>                           // Config
 #endif
-#ifdef SEND_TELEMETRY_I2C
-  #include <Wire.h>                         // Arduino I2C support library
-#endif // SEND_TELEMETRY_I2C
 
 typedef void (*rtcCallback)();
 
@@ -202,7 +192,6 @@ struct SYSCFG {
   byte          message_format;
   unsigned long hlw_kWhtoday;
   uint16_t      hlw_kWhdoy;
-  uint8_t       switchmode;
 } sysCfg;
 
 struct TIME_T {
@@ -259,13 +248,6 @@ WiFiClient espClient;                 // Wifi Client
 PubSubClient mqttClient(espClient);   // MQTT Client
 WiFiUDP portUDP;                      // UDP Syslog
 
-#ifdef FAKE_WEMO                            // Fake Belkin WeMo PowerSwitch
-char packetBuffer[UDP_TX_PACKET_MAX_SIZE];  // buffer to hold incoming UDP packet
-boolean udpConnected = false;
-IPAddress ipMulticast(239, 255, 255, 250);  // Simple Service Discovery Protocol (SSDP) 
-uint32_t portMulticast =1900;               // Multicast address and port
-#endif // FAKE_WEMO
-
 uint8_t power;                        // Current copy of sysCfg.power
 byte syslog_level;                    // Current copy of sysCfg.syslog_level
 uint16_t syslog_timer = 0;            // Timer to re-enable syslog_level
@@ -277,10 +259,6 @@ uint8_t lastbutton = NOT_PRESSED;     // Last button state
 uint8_t holdcount = 0;                // Timer recording button hold
 uint8_t multiwindow = 0;              // Max time between button presses to record press count
 uint8_t multipress = 0;               // Number of button presses within multiwindow
-
-#ifdef USE_WALL_SWITCH
-  uint8_t lastwallswitch;             // Last wall switch state
-#endif  // USE_WALL_SWITCH
 
 #ifdef USE_POWERMONITOR
   byte hlw_pminflg = 0;
@@ -302,10 +280,6 @@ uint8_t multipress = 0;               // Number of button presses within multiwi
   int domoticz_update_timer = 0;
   byte domoticz_update_flag;  
 #endif  // USE_DOMOTICZ 
-
-#ifdef SEND_TELEMETRY_I2C
-  uint8_t htu21 = 0;
-#endif // SEND_TELEMETRY_I2C
 
 /********************************************************************************************/
 
@@ -358,7 +332,6 @@ void CFG_Default()
   sysCfg.timezone = APP_TIMEZONE;
   sysCfg.power = APP_POWER;
   sysCfg.ledstate = APP_LEDSTATE;
-  sysCfg.switchmode = SWITCH_MODE;
   sysCfg.webserver = WEB_SERVER;
   sysCfg.model = 0;
   sysCfg.hlw_pcal = HLW_PREF_PULSE;
@@ -465,9 +438,6 @@ void CFG_Delta()
       if ((sysCfg.tele_period > 0) && (sysCfg.tele_period < 10)) sysCfg.tele_period = 10;   // Do not allow periods < 10 seconds
       sysCfg.hlw_kWhtoday = 0;
       sysCfg.hlw_kWhdoy = 0;
-    }
-    if (sysCfg.version < 0x02001200) {  // 2.0.18 - Add parameter
-      sysCfg.switchmode = SWITCH_MODE;
     }
     
     sysCfg.version = VERSION;
@@ -660,17 +630,18 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
   }
 #endif //USE_DOMOTICZ  
 
-  memmove(topicBuf, topicBuf+sizeof(SUB_PREFIX), sizeof(topicBuf)-sizeof(SUB_PREFIX));  // Remove SUB_PREFIX
   i = 0;
-  for (str = strtok_r(topicBuf, "/", &p); str && i < 3; str = strtok_r(NULL, "/", &p)) {
+  for (str = strtok_r(topicBuf, "/", &p); str && i < 4; str = strtok_r(NULL, "/", &p)) {
     switch (i++) {
-    case 0:  // Topic / GroupTopic / DVES_123456
+    case 0:  // cmnd
+      break;
+    case 1:  // Topic / GroupTopic / DVES_123456
       mtopic = str;
       break;
-    case 1:  // TopicIndex / Text
+    case 2:  // TopicIndex / Text
       type = str;
       break;
-    case 2:  // Text
+    case 3:  // Text
       devc = str;
     }
   }
@@ -713,7 +684,7 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     if (!strcmp(dataBufUc,"ON") || !strcmp(dataBufUc,"START") || !strcmp(dataBufUc,"USER")) payload = 1;
     if (!strcmp(dataBufUc,"TOGGLE") || !strcmp(dataBufUc,"ADMIN")) payload = 2;
     
-    if (!strcmp(type,"LIGHT") || !strcmp(type,"POWER")) {
+    if ((!strcmp(type,"LIGHT")) || (!strcmp(type,"POWER"))) {
       snprintf_P(sysCfg.mqtt_subtopic, sizeof(sysCfg.mqtt_subtopic), PSTR("%s"), type);
       byte mask = 0x01 << (device -1);
       if ((data_len > 0) && (payload >= 0) && (payload <= 2)) {
@@ -963,14 +934,6 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
         snprintf_P(svalue, sizeof(svalue), PSTR("1 to start smartconfig, 2 to start wifimanager, 3 to start wpsconfig. Default is %d"), sysCfg.sta_config);
       }
     }
-#ifdef USE_WALL_SWITCH
-    else if (!strcmp(type,"SWITCHMODE")) {
-      if ((data_len > 0) && (payload >= 0) && (payload <= 2)) {
-        sysCfg.switchmode = payload;
-      }
-      snprintf_P(svalue, sizeof(svalue), PSTR("%d"), sysCfg.switchmode);
-    }
-#endif  // USE_WALL_SWITCH
 #ifdef USE_WEBSERVER
     else if (!strcmp(type,"WEBSERVER")) {
       if ((data_len > 0) && (payload >= 0) && (payload <= 2)) {
@@ -1618,15 +1581,6 @@ void every_second()
       ds18x20_convert();     // Start Conversion, takes up to one second
 #endif  // SEND_TELEMETRY_DS18x20
 
-#ifdef SEND_TELEMETRY_I2C
-      if(htu21_detect() && !htu21) // Search HTU21 sensor 
-      {
-        htu21_init();		   // IF found initialize
-        htu21=1;		       // only once
-      }
-      else htu21=0;		   // Reset for future detection/initialization
-#endif // SEND_TELEMETRY_I2C
-
 #ifdef SEND_TELEMETRY_DHT
       dht_readPrep();
 #endif  // SEND_TELEMETRY_DHT
@@ -1736,28 +1690,6 @@ void every_second()
         }
       }
 #endif  // SEND_TELEMETRY_DHT/2
-
-#ifdef SEND_TELEMETRY_I2C
-      if(htu21)
-      {
-        t=htu21_readTemperature();
-        h=htu21_readHumidity();
-        h=htu21_compensatedHumidity(h,t);
-        dtostrf(t, 1, 2, stemp1);
-        dtostrf(h, 1, 1, stemp2);
-        if (sysCfg.message_format == JSON) {
-          snprintf_P(svalue, sizeof(svalue), PSTR("%s, \"HTU21\":{\"Temperature\":\"%s\", \"Humidity\":\"%s\"}"), svalue, stemp1, stemp2);
-        } else 
-        {
-          snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/HTU21/TEMPERATURE"), PUB_PREFIX2, sysCfg.mqtt_topic);
-          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? " C" : "");
-          mqtt_publish(stopic, svalue);
-          snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/HTU21/HUMIDITY"), PUB_PREFIX2, sysCfg.mqtt_topic);
-          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp2, (sysCfg.mqtt_units) ? " %" : "");
-          mqtt_publish(stopic, svalue);
-        }
-      }
-#endif // SEND_TELEMETRY_I2C
 
 #ifdef USE_POWERMONITOR
 #ifdef SEND_TELEMETRY_ENERGY
@@ -1892,23 +1824,6 @@ void stateloop()
       multipress = 0;
     }
   }
-
-#ifdef USE_WALL_SWITCH
-  button = digitalRead(SWITCH_PIN);
-  if (button != lastwallswitch) {
-    switch (sysCfg.switchmode) {
-    case TOGGLE:
-      do_cmnd_power(1, 2);                  // Execute command internally, 2 toggle
-      break;
-    case FOLLOW:
-      do_cmnd_power(1, (button & 0x01));    // execute command internally, follow wall switch state
-      break;
-    case FOLLOW_INV:
-      do_cmnd_power(1, (~button & 0x01));   // execute command internally, follow wall switch state
-    }
-    lastwallswitch = button;
-  }
-#endif // USE_WALL_SWITCH
 
   if (!(state % ((STATES/10)*2))) {
     if (blinks || restartflag || otaflag) {
@@ -2128,11 +2043,6 @@ void setup()
   }
   if (sysCfg.savestate) setRelay(power);
 
-#ifdef USE_WALL_SWITCH
-  pinMode(SWITCH_PIN, INPUT);                   // set pin to input, fitted with external pull up on Sonoff TH10/16 board                        
-  lastwallswitch = digitalRead(SWITCH_PIN);     // set global now so doesn't change the saved power state on first switch check
-#endif  // USE_WALL_SWITCH
-
   rtc_init(every_second_cb);
 
 #if defined(SEND_TELEMETRY_DHT) || defined(SEND_TELEMETRY_DHT2)
@@ -2146,10 +2056,6 @@ void setup()
   snprintf_P(log, sizeof(log), PSTR("APP: Project %s (Topic %s, Fallback %s, GroupTopic %s) Version %s"),
     PROJECT, sysCfg.mqtt_topic, MQTTClient, sysCfg.mqtt_grptopic, Version);
   addLog(LOG_LEVEL_INFO, log);
-
-#ifdef SEND_TELEMETRY_I2C
-	Wire.begin(DI2C_SDA,DI2C_SCL);
-#endif // SEND_TELEMETRY_I2C
 }
 
 void loop()
@@ -2157,9 +2063,6 @@ void loop()
 #ifdef USE_WEBSERVER
   pollDnsWeb();
 #endif  // USE_WEBSERVER
-#ifdef FAKE_WEMO
-  pollUDP();
-#endif // FAKE_WEMO
 
   if (millis() >= timerxs) stateloop();
 
@@ -2169,5 +2072,4 @@ void loop()
  
   yield();
 }
-
 

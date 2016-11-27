@@ -232,11 +232,6 @@ void startWebserver(int type, IPAddress ipweb)
       webServer->on("/in", handleInfo);
       webServer->on("/rb", handleRestart);
       webServer->on("/fwlink", handleRoot);  // Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
-#ifdef FAKE_WEMO
-      webServer->on("/upnp/control/basicevent1", HTTP_POST, handleUPnPevent);
-      webServer->on("/eventservice.xml", handleUPnPservice);
-      webServer->on("/setup.xml", handleUPnPsetup);
-#endif // FAKE_WEMO
       webServer->onNotFound(handleNotFound);
     }
     webServer->begin(); // Web server start
@@ -318,6 +313,8 @@ void handleRoot()
   } else {
     
     String page = FPSTR(HTTP_HEAD);
+//    page.replace("<meta", "<meta http-equiv=\"refresh\" content=\"4; URL=/\"><meta");                    // Fails Edge (asks for reload)
+//    page.replace("</script>", "setTimeout(function(){window.location.reload(1);},4000);</script>");     // Repeats POST on All
     page.replace("</script>", "setTimeout(function(){window.location.replace(\"/\");},4000);</script>");  // OK on All
     page.replace("{v}", "Main menu");
 
@@ -1031,93 +1028,6 @@ void handleRestart()
   restartflag = 2;
 }
 
-#ifdef FAKE_WEMO
-void handleUPnPevent()
-{
-  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo basic event"));
-  String request = webServer->arg(0);
-
-  if(request.indexOf("<BinaryState>1</BinaryState>") > 0)
-  {
-    Serial.println("Got Turn on request");
-    do_cmnd_power(1, 1);
-  }
-
-  if(request.indexOf("<BinaryState>0</BinaryState>") > 0)
-  {
-    Serial.println("Got Turn off request");
-    do_cmnd_power(1, 0);
-  }
-  webServer->send(200, "text/plain", "");
-}
-
-void handleUPnPservice()
-{
-  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo event service"));
-
-  String eventservice_xml = F("<?scpd xmlns=\"urn:Belkin:service-1-0\"?>"
-            "<actionList>"
-              "<action>"
-                "<name>SetBinaryState</name>"
-                "<argumentList>"
-                  "<argument>"
-                    "<retval/>"
-                    "<name>BinaryState</name>"
-                    "<relatedStateVariable>BinaryState</relatedStateVariable>"
-                    "<direction>in</direction>"
-                  "</argument>"
-                "</argumentList>"
-                 "<serviceStateTable>"
-                  "<stateVariable sendEvents=\"yes\">"
-                    "<name>BinaryState</name>"
-                    "<dataType>Boolean</dataType>"
-                    "<defaultValue>0</defaultValue>"
-                  "</stateVariable>"
-                  "<stateVariable sendEvents=\"yes\">"
-                    "<name>level</name>"
-                    "<dataType>string</dataType>"
-                    "<defaultValue>0</defaultValue>"
-                  "</stateVariable>"
-                "</serviceStateTable>"
-              "</action>"
-            "</scpd>\r\n"
-            "\r\n");
-            
-  webServer->send(200, "text/plain", eventservice_xml.c_str()); 
-}
-
-void handleUPnPsetup()
-{
-  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo setup"));
-
-  String setup_xml = "<?xml version=\"1.0\"?>"
-            "<root>"
-             "<device>"
-                "<deviceType>urn:Belkin:device:controllee:1</deviceType>"
-                "<friendlyName>"+ String(MQTTClient) +"</friendlyName>"
-                "<manufacturer>Belkin International Inc.</manufacturer>"
-                "<modelName>Sonoff Socket</modelName>"
-                "<modelNumber>3.1415</modelNumber>"
-                "<UDN>uuid:"+ prepareUUID() +"</UDN>"
-                "<serialNumber>221517K0101769</serialNumber>"
-                "<binaryState>0</binaryState>"
-                "<serviceList>"
-                  "<service>"
-                      "<serviceType>urn:Belkin:service:basicevent:1</serviceType>"
-                      "<serviceId>urn:Belkin:serviceId:basicevent1</serviceId>"
-                      "<controlURL>/upnp/control/basicevent1</controlURL>"
-                      "<eventSubURL>/upnp/event/basicevent1</eventSubURL>"
-                      "<SCPDURL>/eventservice.xml</SCPDURL>"
-                  "</service>"
-              "</serviceList>" 
-              "</device>"
-            "</root>\r\n"
-            "\r\n";
-            
-  webServer->send(200, "text/xml", setup_xml.c_str());
-}
-#endif //FAKE_WEMO
-
 void handleNotFound()
 {
   if (captivePortal()) { // If captive portal redirect instead of displaying the error page.
@@ -1168,3 +1078,4 @@ boolean isIp(String str)
 }
 
 #endif  // USE_WEBSERVER
+
