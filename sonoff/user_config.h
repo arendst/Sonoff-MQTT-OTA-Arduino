@@ -10,13 +10,13 @@
 #define PROJECT                "sonoff"     // PROJECT is used as the default topic delimiter and OTA file name
                                             // As an IDE restriction it needs to be the same as the main .ino file
                                             
-#define CFG_HOLDER             0x20160520   // Change this value to load default configuration parameters
+#define CFG_HOLDER             0x20160521   // Change this value to load default configuration parameters
 #define SAVE_DATA              1            // Save changed parameters to Flash (0 = disable, 1 - 3600 seconds)
 #define SAVE_STATE             1            // Save changed power state to Flash (0 = disable, 1 = enable)
 
 // Wifi
-#define STA_SSID               "indebuurt3"      // Wifi SSID
-#define STA_PASS               "VnsqrtnrsddbrN"  // Wifi password
+#define STA_SSID               "krupp.net"      // Wifi SSID
+#define STA_PASS               "***REMOVED***"  // Wifi password
 #define WIFI_HOSTNAME          "%s-%04d"         // Expands to <MQTT_TOPIC>-<last 4 decimal chars of MAC address>
 #define WIFI_CONFIG_TOOL       WIFI_WPSCONFIG    // Default tool if wifi fails to connect (WIFI_SMARTCONFIG, WIFI_MANAGER or WIFI_WPSCONFIG)
 

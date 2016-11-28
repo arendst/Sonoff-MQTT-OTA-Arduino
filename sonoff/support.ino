@@ -490,6 +490,48 @@ String prepareUUID()
 }
 
 /*********************************************************************************************\
+ * Basic I2C routines
+ *********************************************************************************************/
+#ifdef SEND_TELEMETRY_I2C
+void i2c_write8(uint8_t addr, uint8_t reg, uint8_t val)
+{
+  Wire.beginTransmission(addr);
+	Wire.write(reg);
+	Wire.write(val);
+	Wire.endTransmission();
+}
+
+uint8_t i2c_read8(uint8_t addr, uint8_t reg)
+{
+	uint8_t data=0;
+	Wire.beginTransmission(addr);
+	Wire.write(reg);
+	Wire.endTransmission();
+	Wire.requestFrom((int)addr, (int)1);
+	if(Wire.available()) data = Wire.read();
+	return data;
+}
+
+uint16_t i2c_read16(uint8_t addr, uint8_t reg)
+{
+  uint16_t data=0;
+  uint8_t  msb=0, lsb=0;
+  Wire.beginTransmission(addr);
+  Wire.write(reg);
+  Wire.endTransmission();
+  Wire.requestFrom((int)addr, (int)2);
+  if(2 == Wire.available())
+  {
+    msb=Wire.read();
+    lsb=Wire.read();
+  }
+  data=(uint16_t)((msb<<8)|lsb);
+
+  return data;
+}
+#endif //SEND_TELEMETRY_I2C
+
+/*********************************************************************************************\
  * Real Time Clock
  * 
  * Sources: Time by Michael Margolis and Paul Stoffregen (https://github.com/PaulStoffregen/Time)
