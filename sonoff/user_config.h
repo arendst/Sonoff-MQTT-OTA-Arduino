@@ -10,32 +10,32 @@
 #define PROJECT                "sonoff"     // PROJECT is used as the default topic delimiter and OTA file name
                                             // As an IDE restriction it needs to be the same as the main .ino file
                                             
-#define CFG_HOLDER             0x20161125   // Change this value to load default configuration parameters
+#define CFG_HOLDER             0x20160520   // Change this value to load default configuration parameters
 #define SAVE_DATA              1            // Save changed parameters to Flash (0 = disable, 1 - 3600 seconds)
 #define SAVE_STATE             1            // Save changed power state to Flash (0 = disable, 1 = enable)
 
 // Wifi
-#define STA_SSID               "TU-KL_guest"     // Wifi SSID
-#define STA_PASS               ""                // Wifi password
+#define STA_SSID               "indebuurt3"      // Wifi SSID
+#define STA_PASS               "VnsqrtnrsddbrN"  // Wifi password
 #define WIFI_HOSTNAME          "%s-%04d"         // Expands to <MQTT_TOPIC>-<last 4 decimal chars of MAC address>
 #define WIFI_CONFIG_TOOL       WIFI_WPSCONFIG    // Default tool if wifi fails to connect (WIFI_SMARTCONFIG, WIFI_MANAGER or WIFI_WPSCONFIG)
 
 // Syslog
-#define SYS_LOG_HOST           "syslog"
+#define SYS_LOG_HOST           "domus1"
 #define SYS_LOG_PORT           514
 #define SYS_LOG_LEVEL          LOG_LEVEL_NONE
-#define SERIAL_LOG_LEVEL       LOG_LEVEL_DEBUG
+#define SERIAL_LOG_LEVEL       LOG_LEVEL_INFO
 #define WEB_LOG_LEVEL          LOG_LEVEL_INFO
 
 // Ota
 #if (ARDUINO >= 168)
-  #define OTA_URL              "http://web:80/api/arduino/" PROJECT ".ino.bin"
+  #define OTA_URL              "http://domus1:80/api/arduino/" PROJECT ".ino.bin"
 #else
-  #define OTA_URL              "http://web:80/api/arduino/" PROJECT ".cpp.bin"
+  #define OTA_URL              "http://domus1:80/api/arduino/" PROJECT ".cpp.bin"
 #endif
 
 // MQTT
-#define MQTT_HOST              "status.uni-kl.de"
+#define MQTT_HOST              "domus1"
 #define MQTT_PORT              1883
 
 #define MQTT_CLIENT_ID         "DVES_%06X"  // Also fall back topic using Chip Id = last 6 characters of MAC address
@@ -64,7 +64,7 @@
 #define DOMOTICZ_UPDATE_TIMER  0            // Send relay status (0 = disable, 1 - 3600 seconds) (Optional)
 
 // MQTT - Telemetry
-#define TELE_PERIOD            15           // Telemetry (0 = disable, 10 - 3600 seconds)
+#define TELE_PERIOD            300          // Telemetry (0 = disable, 10 - 3600 seconds)
 #define SEND_TELEMETRY_UPTIME               // Enable sending uptime telemetry (if disabled will still send hourly message)
 #define SEND_TELEMETRY_RSSI                 // Enable sending wifi RSSI telemetry
 #define SEND_TELEMETRY_POWER                // Enable sending power telemetry
@@ -77,7 +77,7 @@
 #define FAKE_WEMO                           // Enable Belkin WeMo PowerSwitch emulation
 
 // Time - Up to three NTP servers in your region
-#define NTP_SERVER1            "ntp.rhrk.uni-kl.de"
+#define NTP_SERVER1            "pool.ntp.org"
 #define NTP_SERVER2            "nl.pool.ntp.org"
 #define NTP_SERVER3            "0.nl.pool.ntp.org"
 
