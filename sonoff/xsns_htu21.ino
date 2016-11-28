@@ -33,6 +33,8 @@
 #define HTU21_RESET         0xFE
 #define HTU21_HEATER_WRITE  0x51
 #define HTU21_HEATER_READ   0x11
+#define HTU21_SERIAL2_READ1 0xFC    /* Read 3rd two Serial bytes */
+#define HTU21_SERIAL2_READ2 0xC9    /* Read 4th two Serial bytes */
 
 #define HTU21_HEATER_ON     0x04
 #define HTU21_HEATER_OFF    0xFB
@@ -47,25 +49,6 @@
 
 #define HTU21_CRC8_POLYNOM  0x13100
 
-void i2c_write(uint8_t reg, uint8_t val)
-{
-  Wire.beginTransmission(HTU21_ADDR);
-  Wire.write(reg);
-  Wire.write(val);
-  Wire.endTransmission();
-}
-
-uint8_t i2c_read(uint8_t reg)
-{
-  uint8_t data=0;
-  Wire.beginTransmission(HTU21_ADDR);
-  Wire.write(reg);
-  Wire.endTransmission();
-  Wire.requestFrom(HTU21_ADDR, 1);
-  if(Wire.available()) data = Wire.read();
-  return data;
-}
-
 uint8_t check_crc8(uint16_t data)
 {
   for (uint8_t bit = 0; bit < 16; bit++)
@@ -78,21 +61,39 @@ uint8_t check_crc8(uint16_t data)
   return data >>= 8;
 }
 
+uint16_t htu21_readDeviceID(void)
+{
+  uint16_t deviceID=0;
+	uint8_t  checksum=0;
+
+  Wire.beginTransmission(HTU21_ADDR);
+	Wire.write(HTU21_SERIAL2_READ1);
+	Wire.write(HTU21_SERIAL2_READ2);
+	Wire.endTransmission();
+
+	Wire.requestFrom(HTU21_ADDR, 3);
+	deviceID  = Wire.read() << 8;
+  deviceID |= Wire.read();
+  checksum  = Wire.read();
+  if (check_crc8(deviceID) == checksum)
+		 deviceID = deviceID >> 8;
+
+	return deviceID;
+}
+
 uint8_t htu21_detect()
 {
-  Wire.beginTransmission(HTU21_ADDR);
-  Wire.write(0x01);		    // Write invalid Data to Address
-  uint8_t retval=Wire.endTransmission();
-  if(!retval | retval==3) return 1; // Success or NACK Data
-  else return 0;                    // NACK on Address or other Error
+	if(htu21_readDeviceID() == 0x32)  /* HTU21 device ID */
+		return 1;
+  else return 0;                   
 }
 
 void htu21_setRes(uint8_t resolution)
 {
-  uint8_t current = i2c_read(HTU21_READREG);
+  uint8_t current = i2c_read8(HTU21_ADDR, HTU21_READREG);
   current &= 0x7E;                  // Replace current resolution bits with 0
   current |= resolution;            // Add new resolution bits to register
-  i2c_write(HTU21_WRITEREG, current);
+  i2c_write8(HTU21_ADDR, HTU21_WRITEREG, current);
 }
 
 void htu21_reset(void)
@@ -105,7 +106,7 @@ void htu21_reset(void)
 
 void htu21_heater(uint8_t heater)
 {
-  uint8_t current = i2c_read(HTU21_READREG);
+  uint8_t current = i2c_read8(HTU21_ADDR, HTU21_READREG);
   
   switch(heater)
   {
@@ -116,7 +117,7 @@ void htu21_heater(uint8_t heater)
     default               : current &= heater;
                             break;
   }
-  i2c_write(HTU21_WRITEREG, current);
+  i2c_write8(HTU21_ADDR, HTU21_WRITEREG, current);
 }
 
 void htu21_init()
@@ -166,7 +167,7 @@ float htu21_readTemperature(void)
   delay(HTU21_MAX_TEMP);		      // HTU21 time at max resolution
   
   Wire.requestFrom(HTU21_ADDR, 3);
-  if(3 <= Wire.available())
+  if(3 == Wire.available())
   {  
     sensorval = Wire.read() << 8;		      // MSB
     sensorval |= Wire.read();		      // LSB

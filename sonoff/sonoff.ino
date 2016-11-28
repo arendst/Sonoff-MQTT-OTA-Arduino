@@ -305,6 +305,7 @@ uint8_t multipress = 0;               // Number of button presses within multiwi
 
 #ifdef SEND_TELEMETRY_I2C
   uint8_t htu21 = 0;
+  uint8_t bmp180 = 0;
 #endif // SEND_TELEMETRY_I2C
 
 /********************************************************************************************/
@@ -1622,10 +1623,19 @@ void every_second()
 #ifdef SEND_TELEMETRY_I2C
       if(htu21_detect() && !htu21) // Search HTU21 sensor 
       {
+        addLog(LOG_LEVEL_DEBUG, "I2C: Found HTU21 sensor.");
         htu21_init();		   // IF found initialize
         htu21=1;		       // only once
       }
-      else htu21=0;		   // Reset for future detection/initialization
+      else htu21=0;		     // Reset for future detection/initialization
+      if(bmp180_detect() && !bmp180) // Search BMP180 sensor 
+      {
+        addLog(LOG_LEVEL_DEBUG, "I2C: Found BMP180 sensor.");
+        if(bmp180_calibration())  // IF found initialize
+          bmp180=1;               // only once
+        else bmp180=0;            // Getting calibration data failed
+      }
+      else bmp180=0;        // Reset for future detection/initialization
 #endif // SEND_TELEMETRY_I2C
 
 #ifdef SEND_TELEMETRY_DHT
@@ -1755,6 +1765,24 @@ void every_second()
           mqtt_publish(stopic, svalue);
           snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/HTU21/HUMIDITY"), PUB_PREFIX2, sysCfg.mqtt_topic);
           snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp2, (sysCfg.mqtt_units) ? " %" : "");
+          mqtt_publish(stopic, svalue);
+        }
+      }
+      if(bmp180)
+      {
+        double T=bmp180_readTemperature();
+        double P=bmp180_readPressure(T);
+        dtostrf(T, 1, 2, stemp1);
+        dtostrf(P, 1, 2, stemp2);
+        if (sysCfg.message_format == JSON) {
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s, \"BMP180\":{\"Temperature\":\"%s\", \"Pressure\":\"%s\"}"), svalue, stemp1, stemp2);
+        } else 
+        {
+          snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/BMP180/TEMPERATURE"), PUB_PREFIX2, sysCfg.mqtt_topic);
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? " C" : "");
+          mqtt_publish(stopic, svalue);
+          snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/BMP180/PRESSURE"), PUB_PREFIX2, sysCfg.mqtt_topic);
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp2, (sysCfg.mqtt_units) ? " mbar" : "");
           mqtt_publish(stopic, svalue);
         }
       }
