@@ -423,6 +423,18 @@ void handleRoot()
       page += F("<tr><td>HTU21 Humidity: </td><td>"); page += dtemp; page += F("%</td></tr>");
       page += F("</table><br/>");
     }
+    if(bmp180)
+    {
+      char dtemp[10];
+      double dt=bmp180_readTemperature();
+      double dp=bmp180_readPressure(dt);
+      page += F("<table style='width:100%'>");
+      dtostrf(dt, 1, DHT_RESOLUTION &3, dtemp);
+      page += F("<tr><td>BMP180 Temperature: </td><td>"); page += dtemp; page += F("&deg;C</td></tr>");
+      dtostrf(dp, 1, 2, dtemp);
+      page += F("<tr><td>BMP180 Pressure: </td><td>"); page += dtemp; page += F("mbar</td></tr>");
+      page += F("</table><br/>");
+    }
 #endif  // SEND_TELEMETRY_I2C
 
     if (_httpflag == HTTP_ADMIN) {
