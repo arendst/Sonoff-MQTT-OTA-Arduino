@@ -409,6 +409,22 @@ void handleRoot()
     }
 #endif  // SEND_TELEMETRY_DHT/2
 
+#if defined(SEND_TELEMETRY_I2C)
+    if(htu21)
+    {
+      char dtemp[10];      
+      float dt=htu21_readTemperature();
+      float dh=htu21_readHumidity();
+      dh=htu21_compensatedHumidity(dh,dt);
+      page += F("<table style='width:100%'>");
+      dtostrf(dt, 1, DHT_RESOLUTION &3, dtemp);
+      page += F("<tr><td>HTU21 Temperature: </td><td>"); page += dtemp; page += F("&deg;C</td></tr>");
+      dtostrf(dh, 1, 1, dtemp);
+      page += F("<tr><td>HTU21 Humidity: </td><td>"); page += dtemp; page += F("%</td></tr>");
+      page += F("</table><br/>");
+    }
+#endif  // SEND_TELEMETRY_I2C
+
     if (_httpflag == HTTP_ADMIN) {
       page += FPSTR(HTTP_BTN_MENU1);
       page += FPSTR(HTTP_BTN_RSTRT);
