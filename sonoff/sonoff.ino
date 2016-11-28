@@ -10,7 +10,7 @@
  * ====================================================
 */
 
-#define VERSION                0x02001400   // 2.0.19a
+#define VERSION                0x02001400   // 2.0.20
 
 #define SONOFF                 1            // Sonoff, Sonoff SV, Sonoff Dual, Sonoff TH 10A/16A, S20 Smart Socket, 4 Channel
 #define SONOFF_POW             9            // Sonoff Pow
