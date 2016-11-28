@@ -10,7 +10,7 @@
  * ====================================================
 */
 
-#define VERSION                0x02001301   // 2.0.19a
+#define VERSION                0x02001300   // 2.0.19
 
 #define SONOFF                 1            // Sonoff, Sonoff SV, Sonoff Dual, Sonoff TH 10A/16A, S20 Smart Socket, 4 Channel
 #define SONOFF_POW             9            // Sonoff Pow
@@ -124,9 +124,6 @@ enum butt_t {PRESSED, NOT_PRESSED};
 #ifdef USE_SPIFFS
   #include <FS.h>                           // Config
 #endif
-#ifdef SEND_TELEMETRY_I2C
-  #include <Wire.h>                         // Arduino I2C support library
-#endif // SEND_TELEMETRY_I2C
 
 typedef void (*rtcCallback)();
 
@@ -259,13 +256,6 @@ WiFiClient espClient;                 // Wifi Client
 PubSubClient mqttClient(espClient);   // MQTT Client
 WiFiUDP portUDP;                      // UDP Syslog
 
-#ifdef FAKE_WEMO                            // Fake Belkin WeMo PowerSwitch
-char packetBuffer[UDP_TX_PACKET_MAX_SIZE];  // buffer to hold incoming UDP packet
-boolean udpConnected = false;
-IPAddress ipMulticast(239, 255, 255, 250);  // Simple Service Discovery Protocol (SSDP) 
-uint32_t portMulticast =1900;               // Multicast address and port
-#endif // FAKE_WEMO
-
 uint8_t power;                        // Current copy of sysCfg.power
 byte syslog_level;                    // Current copy of sysCfg.syslog_level
 uint16_t syslog_timer = 0;            // Timer to re-enable syslog_level
@@ -302,10 +292,6 @@ uint8_t multipress = 0;               // Number of button presses within multiwi
   int domoticz_update_timer = 0;
   byte domoticz_update_flag;  
 #endif  // USE_DOMOTICZ 
-
-#ifdef SEND_TELEMETRY_I2C
-  uint8_t htu21 = 0;
-#endif // SEND_TELEMETRY_I2C
 
 /********************************************************************************************/
 
@@ -1276,10 +1262,7 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     snprintf_P(svalue, sizeof(svalue), PSTR("Status, SaveData, SaveSate, Upgrade, Otaurl, Restart, Reset, WifiConfig, Seriallog, Weblog, Syslog, LogHost, LogPort, SSId, Password%s, Webserver"), (!grpflg) ? ", Hostname" : "");
 #else      
     snprintf_P(svalue, sizeof(svalue), PSTR("Status, SaveData, SaveSate, Upgrade, Otaurl, Restart, Reset, WifiConfig, Seriallog, Syslog, LogHost, LogPort, SSId, Password%s"), (!grpflg) ? ", Hostname" : "");
-#endif
-#ifdef USE_WALL_SWITCH
-    snprintf_P(svalue, sizeof(svalue), PSTR("%s, SwitchMode"), svalue);
-#endif
+#endif      
     mqtt_publish(stopic, svalue);
     snprintf_P(svalue, sizeof(svalue), PSTR("MqttHost, MqttPort, MqttUser, MqttPassword%s, MqttUnits, MessageFormat, GroupTopic, Timezone, Light, Power, Ledstate, TelePeriod"), (!grpflg) ? ", MqttClient, Topic, ButtonTopic, ButtonRetain" : "");
 #ifdef USE_DOMOTICZ 
@@ -1619,15 +1602,6 @@ void every_second()
       ds18x20_convert();     // Start Conversion, takes up to one second
 #endif  // SEND_TELEMETRY_DS18x20
 
-#ifdef SEND_TELEMETRY_I2C
-      if(htu21_detect() && !htu21) // Search HTU21 sensor 
-      {
-        htu21_init();		   // IF found initialize
-        htu21=1;		       // only once
-      }
-      else htu21=0;		   // Reset for future detection/initialization
-#endif // SEND_TELEMETRY_I2C
-
 #ifdef SEND_TELEMETRY_DHT
       dht_readPrep();
 #endif  // SEND_TELEMETRY_DHT
@@ -1737,28 +1711,6 @@ void every_second()
         }
       }
 #endif  // SEND_TELEMETRY_DHT/2
-
-#ifdef SEND_TELEMETRY_I2C
-      if(htu21)
-      {
-        t=htu21_readTemperature();
-        h=htu21_readHumidity();
-        h=htu21_compensatedHumidity(h,t);
-        dtostrf(t, 1, 2, stemp1);
-        dtostrf(h, 1, 1, stemp2);
-        if (sysCfg.message_format == JSON) {
-          snprintf_P(svalue, sizeof(svalue), PSTR("%s, \"HTU21\":{\"Temperature\":\"%s\", \"Humidity\":\"%s\"}"), svalue, stemp1, stemp2);
-        } else 
-        {
-          snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/HTU21/TEMPERATURE"), PUB_PREFIX2, sysCfg.mqtt_topic);
-          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? " C" : "");
-          mqtt_publish(stopic, svalue);
-          snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/HTU21/HUMIDITY"), PUB_PREFIX2, sysCfg.mqtt_topic);
-          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp2, (sysCfg.mqtt_units) ? " %" : "");
-          mqtt_publish(stopic, svalue);
-        }
-      }
-#endif // SEND_TELEMETRY_I2C
 
 #ifdef USE_POWERMONITOR
 #ifdef SEND_TELEMETRY_ENERGY
@@ -2135,7 +2087,7 @@ void setup()
   if (sysCfg.savestate) setRelay(power);
 
 #ifdef USE_WALL_SWITCH
-  pinMode(SWITCH_PIN, INPUT_PULLUP);            // set pin to input, fitted with external pull up on Sonoff TH10/16 board                        
+  pinMode(SWITCH_PIN, INPUT);                   // set pin to input, fitted with external pull up on Sonoff TH10/16 board                        
   lastwallswitch = digitalRead(SWITCH_PIN);     // set global now so doesn't change the saved power state on first switch check
 #endif  // USE_WALL_SWITCH
 
@@ -2152,10 +2104,6 @@ void setup()
   snprintf_P(log, sizeof(log), PSTR("APP: Project %s (Topic %s, Fallback %s, GroupTopic %s) Version %s"),
     PROJECT, sysCfg.mqtt_topic, MQTTClient, sysCfg.mqtt_grptopic, Version);
   addLog(LOG_LEVEL_INFO, log);
-
-#ifdef SEND_TELEMETRY_I2C
-	Wire.begin(DI2C_SDA,DI2C_SCL);
-#endif // SEND_TELEMETRY_I2C
 }
 
 void loop()
@@ -2163,9 +2111,6 @@ void loop()
 #ifdef USE_WEBSERVER
   pollDnsWeb();
 #endif  // USE_WEBSERVER
-#ifdef FAKE_WEMO
-  pollUDP();
-#endif // FAKE_WEMO
 
   if (millis() >= timerxs) stateloop();
 
@@ -2175,5 +2120,4 @@ void loop()
  
   yield();
 }
-
 
