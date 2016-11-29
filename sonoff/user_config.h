@@ -73,6 +73,9 @@
 #define USE_WEBSERVER                       // Enable web server and wifi manager (+37k code, +2k mem) - Disable by //
 #define WEB_SERVER             2            // Web server (0 = Off, 1 = Start as User, 2 = Start as Admin)
 
+// WeMo
+#define FAKE_WEMO                           // Enable Belkin WeMo PowerSwitch emulation
+
 // Time - Up to three NTP servers in your region
 #define NTP_SERVER1            "pool.ntp.org"
 #define NTP_SERVER2            "nl.pool.ntp.org"
@@ -119,7 +122,10 @@
 //  #define SEND_TELEMETRY_DHT                // Enable sending temperature and humidity telemetry
   // *** Option 2 - Use Adafruit DHT library - Select either Option 1 OR Option 2
 //  #define SEND_TELEMETRY_DHT2               // Enable sending temperature and humidity telemetry
-  
+/*-------------------------------------------------------------------------------------------*/
+  #define DI2C_SDA             4            // GPIO  4 = SDA
+  #define DI2C_SCL             14           // GPIO 14 = SCL
+  #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
 /*********************************************************************************************\
  * Sonoff Pow specific parameters
 \*********************************************************************************************/
@@ -173,7 +179,10 @@
 //  #define SEND_TELEMETRY_DHT                // Enable sending temperature and humidity telemetry
   // *** Option 2 - Use Adafruit DHT library - Select either Option 1 OR Option 2
 //  #define SEND_TELEMETRY_DHT2               // Enable sending temperature and humidity telemetry
-
+/*-------------------------------------------------------------------------------------------*/
+  #define DI2C_SDA             4            // GPIO  4 = SDA
+  #define DI2C_SCL             14           // GPIO 14 = SCL
+//  #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
 /*********************************************************************************************\
  * No user configurable items below
 \*********************************************************************************************/
@@ -199,6 +208,33 @@
 #if ((defined(ST_DSB) && defined(ST_DHT)) || (defined(ST_DSB) && defined(USE_WALL_SWITCH)) || (defined(ST_DHT) && defined(USE_WALL_SWITCH)))
 #if ((DSB_PIN == DHT_PIN) || (DSB_PIN == SWITCH_PIN) || (DHT_PIN == SWITCH_PIN))
   #error "Select either DS18B20 or DHT or WALL SWITCH or use different GPIOs"
+#endif
+#endif
+
+#if defined(SEND_TELEMETRY_DS18x20) && defined(SEND_TELEMETRY_I2C)
+#if DSB_PIN == DI2C_SDA
+  #error "Select either SEND_TELEMETRY_DS18x20 or SEND_TELEMETRY_I2C or use different GPIOs"
+#endif
+#if DSB_PIN == DI2C_SCL
+  #error "Select either SEND_TELEMETRY_DS18x20 or SEND_TELEMETRY_I2C or use different GPIOs"
+#endif
+#endif
+
+#if defined(SEND_TELEMETRY_DS18B20) && defined(SEND_TELEMETRY_I2C)
+#if DSB_PIN == DI2C_SDA
+  #error "Select either SEND_TELEMETRY_DS18x20 or SEND_TELEMETRY_I2C or use different GPIOs"
+#endif
+#if DSB_PIN == DI2C_SCL
+  #error "Select either SEND_TELEMETRY_DS18x20 or SEND_TELEMETRY_I2C or use different GPIOs"
+#endif
+#endif
+
+#if defined(SEND_TELEMETRY_I2C) && defined(SEND_TELEMETRY_DHT)
+#if DSB_I2C_SDA == DHT_PIN
+  #error "Select either SEND_TELEMETRY_I2C or SEND_TELEMETRY_DHT or use different GPIOs"
+#endif
+#if DSB_I2C_SCL == DHT_PIN
+  #error "Select either SEND_TELEMETRY_I2C or SEND_TELEMETRY_DHT or use different GPIOs"
 #endif
 #endif
 

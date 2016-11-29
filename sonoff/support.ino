@@ -371,6 +371,12 @@ void WIFI_Check(int param)
         }
       }
 #endif  // USE_WEBSERVER
+#ifdef FAKE_WEMO
+      if (WiFi.status() == WL_CONNECTED)
+      {
+        if(udpConnected==false) udpConnected = UDP_Connect();
+      } else udpConnected=false;
+#endif //FAKE_WEMO
     }
   }
 }
@@ -406,6 +412,124 @@ void WIFI_Connect(char *Hostname)
   _wifiretry = WIFI_RETRY;
   _wificounter = 1;
 }
+
+/*********************************************************************************************\
+ * Fake WeMo UPNP support routines
+ *********************************************************************************************/
+boolean UDP_Connect(){
+  boolean state = false;
+  
+  if(portUDP.beginMulticast(WiFi.localIP(), ipMulticast, portMulticast)) {
+    addLog_P(LOG_LEVEL_DEBUG, PSTR("UPnP: Join Multicast successfull."));
+    state = true;
+  }
+  else{
+    addLog_P(LOG_LEVEL_DEBUG, PSTR("UPnP: Join Multicast failed."));
+  }
+  
+  return state;
+}
+
+void pollUDP()
+{
+  if (udpConnected)
+  {   
+    if(portUDP.parsePacket())
+    {
+      int len = portUDP.read(packetBuffer, 255);
+      if (len > 0) packetBuffer[len] = 0;
+      String request = packetBuffer;
+      if(request.indexOf("M-SEARCH") > 0)
+      {
+        if(request.indexOf("urn:Belkin:device:**") > 0)
+        {
+          addLog_P(LOG_LEVEL_DEBUG, PSTR("Responding to search request ..."));
+          respondToMSearch();
+        }
+      }        
+     }
+  }
+}
+
+void respondToMSearch()
+{
+  IPAddress localIP = WiFi.localIP();
+  char s[16];
+  sprintf(s, "%d.%d.%d.%d", localIP[0], localIP[1], localIP[2], localIP[3]);
+
+  String response = 
+         "HTTP/1.1 200 OK\r\n"
+         "CACHE-CONTROL: max-age=86400\r\n"
+         "DATE: Fri, 15 Apr 2016 04:56:29 GMT\r\n"
+         "EXT:\r\n"
+         "LOCATION: http://"+ String(s) +":80/setup.xml\r\n"
+         "OPT: \"http://schemas.upnp.org/upnp/1/0/\"; ns=01\r\n"
+         "01-NLS: b9200ebb-736d-4b93-bf03-835149d13983\r\n"
+         "SERVER: Unspecified, UPnP/1.0, Unspecified\r\n"
+         "ST: urn:Belkin:device:**\r\n"
+         "USN: uuid:"+ prepareUUID() +"::urn:Belkin:device:**\r\n"
+         "X-User-Agent: redsonic\r\n\r\n";
+
+  portUDP.beginPacket(portUDP.remoteIP(), portUDP.remotePort());
+  portUDP.write(response.c_str());
+  portUDP.endPacket();                    
+
+  addLog_P(LOG_LEVEL_DEBUG, PSTR("UPnP: Response sent!"));
+}
+
+String prepareUUID() 
+{
+  uint32_t chipId = ESP.getChipId();
+  char uuid[64];
+  sprintf_P(uuid, PSTR("38323636-4558-4dda-9188-cda0e6%02x%02x%02x"),
+        (uint16_t) ((chipId >> 16) & 0xff),
+        (uint16_t) ((chipId >>  8) & 0xff),
+        (uint16_t)   chipId        & 0xff);
+
+  return "Socket-1_0-" + String(uuid);
+}
+
+/*********************************************************************************************\
+ * Basic I2C routines
+ *********************************************************************************************/
+#ifdef SEND_TELEMETRY_I2C
+void i2c_write8(uint8_t addr, uint8_t reg, uint8_t val)
+{
+  Wire.beginTransmission(addr);
+	Wire.write(reg);
+	Wire.write(val);
+	Wire.endTransmission();
+}
+
+uint8_t i2c_read8(uint8_t addr, uint8_t reg)
+{
+	uint8_t data=0;
+	Wire.beginTransmission(addr);
+	Wire.write(reg);
+	Wire.endTransmission();
+	Wire.requestFrom((int)addr, (int)1);
+	if(Wire.available()) data = Wire.read();
+	return data;
+}
+
+uint16_t i2c_read16(uint8_t addr, uint8_t reg)
+{
+  uint16_t data=0;
+  uint8_t  msb=0, lsb=0;
+  Wire.beginTransmission(addr);
+  Wire.write(reg);
+  Wire.endTransmission();
+  Wire.requestFrom((int)addr, (int)2);
+  if(2 == Wire.available())
+  {
+    msb=Wire.read();
+    lsb=Wire.read();
+  }
+  data=(uint16_t)((msb<<8)|lsb);
+
+  return data;
+}
+#endif //SEND_TELEMETRY_I2C
 
 /*********************************************************************************************\
  * Real Time Clock
@@ -691,4 +815,5 @@ void addLog_P(byte loglevel, const char *formatP)
 /*********************************************************************************************\
  * 
 \*********************************************************************************************/
+
 

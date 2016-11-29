@@ -10,7 +10,7 @@
  * ====================================================
 */
 
-#define VERSION                0x02001301   // 2.0.19a
+#define VERSION                0x02001400   // 2.0.20
 
 #define SONOFF                 1            // Sonoff, Sonoff SV, Sonoff Dual, Sonoff TH 10A/16A, S20 Smart Socket, 4 Channel
 #define SONOFF_POW             9            // Sonoff Pow
@@ -124,6 +124,9 @@ enum butt_t {PRESSED, NOT_PRESSED};
 #ifdef USE_SPIFFS
   #include <FS.h>                           // Config
 #endif
+#ifdef SEND_TELEMETRY_I2C
+  #include <Wire.h>                         // Arduino I2C support library
+#endif // SEND_TELEMETRY_I2C
 
 typedef void (*rtcCallback)();
 
@@ -256,6 +259,13 @@ WiFiClient espClient;                 // Wifi Client
 PubSubClient mqttClient(espClient);   // MQTT Client
 WiFiUDP portUDP;                      // UDP Syslog
 
+#ifdef FAKE_WEMO                            // Fake Belkin WeMo PowerSwitch
+char packetBuffer[UDP_TX_PACKET_MAX_SIZE];  // buffer to hold incoming UDP packet
+boolean udpConnected = false;
+IPAddress ipMulticast(239, 255, 255, 250);  // Simple Service Discovery Protocol (SSDP) 
+uint32_t portMulticast =1900;               // Multicast address and port
+#endif // FAKE_WEMO
+
 uint8_t power;                        // Current copy of sysCfg.power
 byte syslog_level;                    // Current copy of sysCfg.syslog_level
 uint16_t syslog_timer = 0;            // Timer to re-enable syslog_level
@@ -292,6 +302,11 @@ uint8_t multipress = 0;               // Number of button presses within multiwi
   int domoticz_update_timer = 0;
   byte domoticz_update_flag;  
 #endif  // USE_DOMOTICZ 
+
+#ifdef SEND_TELEMETRY_I2C
+  uint8_t htu21 = 0;
+  uint8_t bmp180 = 0;
+#endif // SEND_TELEMETRY_I2C
 
 /********************************************************************************************/
 
@@ -1605,6 +1620,24 @@ void every_second()
       ds18x20_convert();     // Start Conversion, takes up to one second
 #endif  // SEND_TELEMETRY_DS18x20
 
+#ifdef SEND_TELEMETRY_I2C
+      if(htu21_detect() && !htu21) // Search HTU21 sensor 
+      {
+        addLog(LOG_LEVEL_DEBUG, "I2C: Found HTU21 sensor.");
+        htu21_init();		   // IF found initialize
+        htu21=1;		       // only once
+      }
+      else htu21=0;		     // Reset for future detection/initialization
+      if(bmp180_detect() && !bmp180) // Search BMP180 sensor 
+      {
+        addLog(LOG_LEVEL_DEBUG, "I2C: Found BMP180 sensor.");
+        if(bmp180_calibration())  // IF found initialize
+          bmp180=1;               // only once
+        else bmp180=0;            // Getting calibration data failed
+      }
+      else bmp180=0;        // Reset for future detection/initialization
+#endif // SEND_TELEMETRY_I2C
+
 #ifdef SEND_TELEMETRY_DHT
       dht_readPrep();
 #endif  // SEND_TELEMETRY_DHT
@@ -1714,6 +1747,46 @@ void every_second()
         }
       }
 #endif  // SEND_TELEMETRY_DHT/2
+
+#ifdef SEND_TELEMETRY_I2C
+      if(htu21)
+      {
+        t=htu21_readTemperature();
+        h=htu21_readHumidity();
+        h=htu21_compensatedHumidity(h,t);
+        dtostrf(t, 1, 2, stemp1);
+        dtostrf(h, 1, 1, stemp2);
+        if (sysCfg.message_format == JSON) {
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s, \"HTU21\":{\"Temperature\":\"%s\", \"Humidity\":\"%s\"}"), svalue, stemp1, stemp2);
+        } else 
+        {
+          snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/HTU21/TEMPERATURE"), PUB_PREFIX2, sysCfg.mqtt_topic);
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? " C" : "");
+          mqtt_publish(stopic, svalue);
+          snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/HTU21/HUMIDITY"), PUB_PREFIX2, sysCfg.mqtt_topic);
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp2, (sysCfg.mqtt_units) ? " %" : "");
+          mqtt_publish(stopic, svalue);
+        }
+      }
+      if(bmp180)
+      {
+        double T=bmp180_readTemperature();
+        double P=bmp180_readPressure(T);
+        dtostrf(T, 1, 2, stemp1);
+        dtostrf(P, 1, 2, stemp2);
+        if (sysCfg.message_format == JSON) {
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s, \"BMP180\":{\"Temperature\":\"%s\", \"Pressure\":\"%s\"}"), svalue, stemp1, stemp2);
+        } else 
+        {
+          snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/BMP180/TEMPERATURE"), PUB_PREFIX2, sysCfg.mqtt_topic);
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? " C" : "");
+          mqtt_publish(stopic, svalue);
+          snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/BMP180/PRESSURE"), PUB_PREFIX2, sysCfg.mqtt_topic);
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp2, (sysCfg.mqtt_units) ? " mbar" : "");
+          mqtt_publish(stopic, svalue);
+        }
+      }
+#endif // SEND_TELEMETRY_I2C
 
 #ifdef USE_POWERMONITOR
 #ifdef SEND_TELEMETRY_ENERGY
@@ -2107,6 +2180,10 @@ void setup()
   snprintf_P(log, sizeof(log), PSTR("APP: Project %s (Topic %s, Fallback %s, GroupTopic %s) Version %s"),
     PROJECT, sysCfg.mqtt_topic, MQTTClient, sysCfg.mqtt_grptopic, Version);
   addLog(LOG_LEVEL_INFO, log);
+
+#ifdef SEND_TELEMETRY_I2C
+	Wire.begin(DI2C_SDA,DI2C_SCL);
+#endif // SEND_TELEMETRY_I2C
 }
 
 void loop()
@@ -2114,6 +2191,9 @@ void loop()
 #ifdef USE_WEBSERVER
   pollDnsWeb();
 #endif  // USE_WEBSERVER
+#ifdef FAKE_WEMO
+  pollUDP();
+#endif // FAKE_WEMO
 
   if (millis() >= timerxs) stateloop();
 
@@ -2123,4 +2203,5 @@ void loop()
  
   yield();
 }
+
 

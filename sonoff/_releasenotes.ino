@@ -1,4 +1,9 @@
-/* 2.0.19a 20161127
+/* 2.0.20  20161128
+ * Implementation of fake Belkin WeMo PowerPlug emulation mode
+ * Add I2C sensor driver for HTU21 as alternate sensor using TH10/16 connectors 
+ * Add I2C sensor driver for BMP085/BMP180 as alternate sensor using TH10/16 connectors 
+ *
+ * 2.0.19a 20161127
  * Add support for ButtonTopic and ButtonRetain to wall switch function
  * Add pullup to SWITCH_PIN and command SwitchMode to syntax
  * 
@@ -308,3 +313,4 @@
  * Initial public release
  * Show debug info by selecting option from IDE Tools Debug port: Serial
  */
+
