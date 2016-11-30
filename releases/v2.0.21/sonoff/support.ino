@@ -1,6 +1,4 @@
 /*
-These routines provide support to my various ESP8266 based projects.
-
 Copyright (c) 2016 Theo Arends.  All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -158,6 +156,53 @@ void CFG_Erase()
       }
       delay(10);
     }
+  }
+}
+
+void CFG_Dump()
+{
+  #define CFG_COLS 16
+  char log[LOGSZ];
+  uint8_t buffer[((sizeof(SYSCFG)+CFG_COLS)/CFG_COLS)*CFG_COLS];
+  uint16_t idx, row, col;
+
+  if (spiffsPresent()) {
+    if (!spiffsflag) {
+#ifdef USE_SPIFFS
+      File f = SPIFFS.open(SPIFFS_CONFIG, "r+");
+      if (f) {
+        uint8_t *bytes = (uint8_t*)&buffer;
+        for (int i = 0; i < sizeof(buffer); i++) bytes[i] = f.read();
+        f.close();
+        addLog(LOG_LEVEL_INFO, PSTR("Config: Loaded buffer from spiffs"));
+      } else {
+        addLog_P(LOG_LEVEL_ERROR, PSTR("Config: ERROR - Loading buffer failed"));
+      }
+    } else {  
+#endif  // USE_SPIFFS
+      noInterrupts();
+      spi_flash_read((CFG_LOCATION + (sysCfg.saveFlag &1)) * SPI_FLASH_SEC_SIZE, (uint32*)&buffer, sizeof(buffer));
+      interrupts();
+      snprintf_P(log, sizeof(log), PSTR("Config: Loaded buffer from flash at %X"), CFG_LOCATION + (sysCfg.saveFlag &1));
+      addLog(LOG_LEVEL_INFO, log);
+    }
+    for (row = 0; row < sizeof(buffer)/CFG_COLS; row++) {
+      idx = row * CFG_COLS;
+      snprintf_P(log, sizeof(log), PSTR("%04X:"), idx);
+      for (col = 0; col < CFG_COLS; col++) {
+        if (!(col%4)) snprintf_P(log, sizeof(log), PSTR("%s "), log);
+        snprintf_P(log, sizeof(log), PSTR("%s %02X"), log, buffer[idx + col]);
+      }
+      snprintf_P(log, sizeof(log), PSTR("%s |"), log);
+      for (col = 0; col < CFG_COLS; col++) {
+//        if (!(col%4)) snprintf_P(log, sizeof(log), PSTR("%s "), log);
+        snprintf_P(log, sizeof(log), PSTR("%s%c"), log, ((buffer[idx + col] > 0x20) && (buffer[idx + col] < 0x7F)) ? (char)buffer[idx + col] : ' ');
+      }
+      snprintf_P(log, sizeof(log), PSTR("%s|"), log);
+      addLog(LOG_LEVEL_INFO, log);
+    }
+  } else {
+    addLog_P(LOG_LEVEL_ERROR, PSTR("Config: ERROR - No SPIFFS present"));
   }
 }
 
@@ -371,6 +416,13 @@ void WIFI_Check(int param)
         }
       }
 #endif  // USE_WEBSERVER
+#ifdef USE_WEMO_EMULATION
+      if (WiFi.status() == WL_CONNECTED) {
+        if(udpConnected == false) udpConnected = UDP_Connect();
+      } else {
+        udpConnected = false;
+      }
+#endif  // USE_WEMO_EMULATION
     }
   }
 }
@@ -406,6 +458,175 @@ void WIFI_Connect(char *Hostname)
   _wifiretry = WIFI_RETRY;
   _wificounter = 1;
 }
+
+#ifdef USE_WEMO_EMULATION
+/*********************************************************************************************\
+ * WeMo UPNP support routines
+\*********************************************************************************************/
+boolean UDP_Connect()
+{
+  boolean state = false;
+  
+  if(portUDP.beginMulticast(WiFi.localIP(), ipMulticast, portMulticast)) {
+    addLog_P(LOG_LEVEL_DEBUG, PSTR("UPnP: Join Multicast successfull"));
+    state = true;
+  } else {
+    addLog_P(LOG_LEVEL_DEBUG, PSTR("UPnP: Join Multicast failed"));
+  }
+  return state;
+}
+
+void pollUDP()
+{
+  if (udpConnected) {   
+    if(portUDP.parsePacket()) {
+      int len = portUDP.read(packetBuffer, 255);
+      if (len > 0) packetBuffer[len] = 0;
+      String request = packetBuffer;
+      if(request.indexOf("M-SEARCH") > 0) {
+        if(request.indexOf("urn:Belkin:device:**") > 0) {
+          addLog_P(LOG_LEVEL_DEBUG, PSTR("Responding to search request ..."));
+          respondToMSearch();
+        }
+      }        
+    }
+  }
+}
+
+void respondToMSearch()
+{
+  IPAddress localIP = WiFi.localIP();
+  char s[16];
+  sprintf(s, "%d.%d.%d.%d", localIP[0], localIP[1], localIP[2], localIP[3]);
+
+  String response = 
+         "HTTP/1.1 200 OK\r\n"
+         "CACHE-CONTROL: max-age=86400\r\n"
+         "DATE: Fri, 15 Apr 2016 04:56:29 GMT\r\n"
+         "EXT:\r\n"
+         "LOCATION: http://"+ String(s) +":80/setup.xml\r\n"
+         "OPT: \"http://schemas.upnp.org/upnp/1/0/\"; ns=01\r\n"
+         "01-NLS: b9200ebb-736d-4b93-bf03-835149d13983\r\n"
+         "SERVER: Unspecified, UPnP/1.0, Unspecified\r\n"
+         "ST: urn:Belkin:device:**\r\n"
+         "USN: uuid:"+ prepareUUID() +"::urn:Belkin:device:**\r\n"
+         "X-User-Agent: redsonic\r\n\r\n";
+
+  portUDP.beginPacket(portUDP.remoteIP(), portUDP.remotePort());
+  portUDP.write(response.c_str());
+  portUDP.endPacket();                    
+
+  addLog_P(LOG_LEVEL_DEBUG, PSTR("UPnP: Response sent!"));
+}
+
+String prepareUUID() 
+{
+  uint32_t chipId = ESP.getChipId();
+  char uuid[64];
+  sprintf_P(uuid, PSTR("38323636-4558-4dda-9188-cda0e6%02x%02x%02x"),
+        (uint16_t) ((chipId >> 16) & 0xff),
+        (uint16_t) ((chipId >>  8) & 0xff),
+        (uint16_t)   chipId        & 0xff);
+
+  return "Socket-1_0-" + String(uuid);
+}
+#endif  // USE_WEMO_EMULATION
+
+/*********************************************************************************************\
+ * Basic I2C routines
+\*********************************************************************************************/
+
+#ifdef SEND_TELEMETRY_I2C
+#define I2C_RETRY_COUNTER 3
+
+int32_t i2c_read(uint8_t addr, uint8_t reg, uint8_t size)
+{
+  char log[LOGSZ];
+  byte x = 0;
+  int32_t data = 0;
+
+  do {
+    Wire.beginTransmission(addr);             // start transmission to device
+    Wire.write(reg);                          // sends register address to read from
+    if (Wire.endTransmission(false) == 0) {   // Try to become I2C Master, send data and collect bytes, keep master status for next request...
+      Wire.requestFrom((int)addr, (int)size); // send data n-bytes read
+      if (Wire.available() == size)
+        for(byte i = 0; i < size; i++) {
+          data <<= 8;
+          data |= Wire.read();                // receive DATA
+        }
+    }
+    x++;
+  } while (Wire.endTransmission(true) != 0 && x <= I2C_RETRY_COUNTER); // end transmission
+
+//  snprintf_P(log, sizeof(log), PSTR("I2C: received %X, retries %d"), data, x -1);
+//  addLog(LOG_LEVEL_DEBUG_MORE, log);
+
+  return data;
+}
+
+uint8_t i2c_read8(uint8_t addr, uint8_t reg)
+{
+  return i2c_read(addr, reg, 1);
+}
+
+uint16_t i2c_read16(uint8_t addr, uint8_t reg)
+{
+  return i2c_read(addr, reg, 2);
+}
+
+int16_t i2c_readS16(uint8_t addr, uint8_t reg)
+{
+  return (int16_t)i2c_read(addr, reg, 2);
+}
+
+uint16_t i2c_read16_LE(uint8_t addr, uint8_t reg)
+{
+  uint16_t temp = i2c_read(addr, reg, 2);
+  return (temp >> 8) | (temp << 8);
+}
+
+int16_t i2c_readS16_LE(uint8_t addr, uint8_t reg)
+{
+  return (int16_t)i2c_read16_LE(addr, reg);
+}
+
+int32_t i2c_read24(uint8_t addr, uint8_t reg)
+{
+  return i2c_read(addr, reg, 3);
+}
+
+void i2c_write8(uint8_t addr, uint8_t reg, uint8_t val)
+{
+  byte x = I2C_RETRY_COUNTER;
+
+  do {
+    Wire.beginTransmission((uint8_t)addr);  // start transmission to device
+    Wire.write(reg);                         // sends register address to read from
+    Wire.write(val);                         // write data
+    x--;
+  } while (Wire.endTransmission(true) != 0 && x != 0); // end transmission
+}
+
+void i2c_scan(char *devs, unsigned int devs_len)
+{
+  byte error, address, any = 0;
+  char tstr[10];
+  
+  snprintf_P(devs, devs_len, PSTR("Device(s) found at"));
+  for (address = 1; address <= 127; address++) {
+    Wire.beginTransmission(address);
+    error = Wire.endTransmission();
+    if (error == 0) {
+      snprintf_P(tstr, sizeof(tstr), PSTR(" 0x%2x"), address);
+      strncat(devs, tstr, devs_len);
+      any = 1;
+    }
+    else if (error == 4) snprintf_P(devs, devs_len, PSTR("Unknow error at 0x%2x"), address);
+  }
+  if (!any) snprintf_P(devs, devs_len, PSTR("No devices found"));
+}
+#endif //SEND_TELEMETRY_I2C
 
 /*********************************************************************************************\
  * Real Time Clock

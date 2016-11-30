@@ -174,4 +174,3 @@ void dht_init()
   addLog(LOG_LEVEL_DEBUG, log);
 }
 #endif  // SEND_TELEMETRY_DHT
-

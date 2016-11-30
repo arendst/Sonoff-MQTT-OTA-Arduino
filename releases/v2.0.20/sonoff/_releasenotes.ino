@@ -1,7 +1,4 @@
-/* 2.0.21 20161130
- * Add Belkin WeMo PowerPlug emulation enabled with USE_WEMO_EMULATION in user_config.h (Heiko Krupp)
- * 
- * 2.0.20 20161130
+/* 2.0.20 20161130
  * Relax MQTTClient naming but only allows hexadecimal uppercase numbers
  * Add I2C support with command I2CScan
  * Add I2C sensor driver for HTU21 as alternate sensor using TH10/16 connectors (Heiko Krupp)

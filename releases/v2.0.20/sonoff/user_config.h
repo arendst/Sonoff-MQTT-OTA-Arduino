@@ -72,7 +72,6 @@
 // HTTP
 #define USE_WEBSERVER                       // Enable web server and wifi manager (+37k code, +2k mem) - Disable by //
 #define WEB_SERVER             2            // Web server (0 = Off, 1 = Start as User, 2 = Start as Admin)
-//#define USE_WEMO_EMULATION                  // Enable Belkin WeMo PowerSwitch emulation (+4k code, +10k mem)
 
 // Time - Up to three NTP servers in your region
 #define NTP_SERVER1            "pool.ntp.org"
