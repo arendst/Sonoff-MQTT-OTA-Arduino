@@ -650,7 +650,7 @@ void handleMqtt()
   page.replace("{v}", "Configure MQTT");
   page += FPSTR(HTTP_FORM_MQTT);
   char str[sizeof(sysCfg.mqtt_client)];
-  getClient(str, MQTT_CLIENT_ID, sizeof(sysCfg.mqtt_client));
+  getClient(str, (char*)MQTT_CLIENT_ID, sizeof(sysCfg.mqtt_client));
   page.replace("{m0}", str);
   page.replace("{m1}", String(sysCfg.mqtt_host));
   page.replace("{m2}", String(sysCfg.mqtt_port));
