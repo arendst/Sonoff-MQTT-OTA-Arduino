@@ -515,6 +515,9 @@ void setRelay(uint8_t power)
     Serial.flush();
   } else {
     digitalWrite(REL_PIN, power & 0x1);
+    #ifdef REL2_PIN
+      digitalWrite(REL2_PIN, (power & 0x2) >> 1);
+    #endif
   }
 #ifdef USE_POWERMONITOR
   power_steady_cntr = 2;
@@ -2190,6 +2193,11 @@ void setup()
     Baudrate = 19200;
     Maxdevice = sysCfg.model;
   }
+
+  if (MODULE == ELECTRO_DRAGON) {
+    Maxdevice = 2;
+  }
+
   if (Serial.baudRate() != Baudrate) {
     snprintf_P(log, sizeof(log), PSTR("APP: Need to change baudrate to %d"), Baudrate);
     addLog(LOG_LEVEL_INFO, log);
@@ -2223,6 +2231,9 @@ void setup()
   if ((sysCfg.model < SONOFF_DUAL) || (sysCfg.model > CHANNEL_8)) {
     pinMode(KEY_PIN, INPUT_PULLUP);
     pinMode(REL_PIN, OUTPUT);
+    #ifdef REL2_PIN
+      pinMode(REL2_PIN, OUTPUT);
+    #endif
   }
   if (sysCfg.savestate) setRelay(power);
 
