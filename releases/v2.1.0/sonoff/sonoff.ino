@@ -10,7 +10,7 @@
  * ====================================================
 */
 
-#define VERSION                0x02010100   // 2.1.1
+#define VERSION                0x02010000   // 2.1.0
 
 #define SONOFF                 1            // Sonoff, Sonoff SV, Sonoff Dual, Sonoff TH 10A/16A, S20 Smart Socket, 4 Channel
 #define SONOFF_POW             9            // Sonoff Pow
@@ -276,7 +276,6 @@ uint8_t lastbutton = NOT_PRESSED;     // Last button state
 uint8_t holdcount = 0;                // Timer recording button hold
 uint8_t multiwindow = 0;              // Max time between button presses to record press count
 uint8_t multipress = 0;               // Number of button presses within multiwindow
-uint8_t lastbutton2 = NOT_PRESSED;    // Last button 2 state
 
 boolean udpConnected = false;
 #ifdef USE_WEMO_EMULATION
@@ -516,9 +515,6 @@ void setRelay(uint8_t power)
     Serial.flush();
   } else {
     digitalWrite(REL_PIN, power & 0x1);
-#ifdef REL2_PIN
-    digitalWrite(REL2_PIN, (power & 0x2));
-#endif    
   }
 #ifdef USE_POWERMONITOR
   power_steady_cntr = 2;
@@ -1997,18 +1993,6 @@ void stateloop()
     }
   }
 
-#ifdef KEY2_PIN
-  button = digitalRead(KEY2_PIN);
-  if ((button == PRESSED) && (lastbutton2 == NOT_PRESSED)) {
-    if (mqttClient.connected() && strcmp(sysCfg.mqtt_topic2,"0")) {
-      send_button_power(2, 2);   // Execute commend via MQTT   
-    } else {
-      do_cmnd_power(2, 2);       // Execute command internally
-    }
-  }
-  lastbutton2 = button;
-#endif
-
 #ifdef USE_WALL_SWITCH
   button = digitalRead(SWITCH_PIN);
   if (button != lastwallswitch) {
@@ -2206,7 +2190,6 @@ void setup()
     Baudrate = 19200;
     Maxdevice = sysCfg.model;
   }
-  if (MODULE == ELECTRO_DRAGON) Maxdevice = 2;
   if (Serial.baudRate() != Baudrate) {
     snprintf_P(log, sizeof(log), PSTR("APP: Need to change baudrate to %d"), Baudrate);
     addLog(LOG_LEVEL_INFO, log);
@@ -2240,12 +2223,6 @@ void setup()
   if ((sysCfg.model < SONOFF_DUAL) || (sysCfg.model > CHANNEL_8)) {
     pinMode(KEY_PIN, INPUT_PULLUP);
     pinMode(REL_PIN, OUTPUT);
-#ifdef KEY2_PIN
-    pinMode(KEY2_PIN, INPUT_PULLUP);
-#endif  
-#ifdef REL2_PIN
-    pinMode(REL2_PIN, OUTPUT);
-#endif  
   }
   if (sysCfg.savestate) setRelay(power);
 

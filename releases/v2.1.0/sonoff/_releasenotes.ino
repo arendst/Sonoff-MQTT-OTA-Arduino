@@ -1,7 +1,4 @@
-/* 2.1.1 20161202
- * Add support for ElectroDragon second relay and button (only toggle with optional ButtonTopic)
- * 
- * 2.1.0 20161202
+/* 2.1.0
  * Add optional EXPERIMENTAL TLS to MQTT
  * Fix MQTT payload handling
  * Optimzed WeMo code

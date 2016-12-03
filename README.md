@@ -1,7 +1,7 @@
 ## Sonoff-MQTT-OTA-Arduino
 Provide ESP8266 based itead Sonoff with Serial, Web and MQTT control allowing 'Over the Air' or OTA firmware updates using Arduino IDE.
 
-Current version is **2.0.21a** - See ```sonoff/_releasenotes.ino``` for change information.
+Current version is **2.1.1** - See ```sonoff/_releasenotes.ino``` for change information.
 
 Starting with version 2.0.0 the following hardware devices are supported:
 - itead Sonoff
@@ -10,7 +10,7 @@ Starting with version 2.0.0 the following hardware devices are supported:
 - itead Sonoff TH10 / TH16 with temperature sensor
 - itead Sonoff Pow
 - itead S20 Smart Socket
-- ElectroDragon IoT Relay Board but relay 1 only
+- ElectroDragon IoT Relay Board
 
 See [my Wiki](https://github.com/arendst/Sonoff-MQTT-OTA-Arduino/wiki) for more information.
 

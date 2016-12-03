@@ -78,9 +78,9 @@
   #define DOMOTICZ_IN_TOPIC      "domoticz/in"  // [DomoticzInTopic]
   #define DOMOTICZ_OUT_TOPIC     "domoticz/out" // [DomoticzOutTopic]
   #define DOMOTICZ_RELAY_IDX1    0          // [DomoticzIdx] Sonoff Relay 1 (0 = disable domoticz)
-  #define DOMOTICZ_RELAY_IDX2    0          // [2/DomoticzIdx] Sonoff Dual Relay 2
+  #define DOMOTICZ_RELAY_IDX2    0          // Sonoff Dual Relay 2
   #define DOMOTICZ_KEY_IDX1      0          // [DomoticzKeyIdx] Button single press (0 = disable)
-  #define DOMOTICZ_KEY_IDX2      0          // [2/DomoticzKeyIdx] Button double press (0 = disable)
+  #define DOMOTICZ_KEY_IDX2      0          // Button double press (0 = disable)
   #define DOMOTICZ_UPDATE_TIMER  0          // [DomoticzUpdateTimer] Send relay status (0 = disable, 1 - 3600 seconds) (Optional)
 
 // -- HTTP -----------------------------------
