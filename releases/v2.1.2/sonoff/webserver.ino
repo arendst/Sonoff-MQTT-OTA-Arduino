@@ -49,8 +49,8 @@ const char HTTP_HEAD[] PROGMEM =
     "}"
   "}"
   "function c(l){"
-    "document.getElementById('s').value=l.innerText||l.textContent;"
-    "document.getElementById('p').focus();"
+    "document.getElementById('s1').value=l.innerText||l.textContent;"
+    "document.getElementById('p1').focus();"
   "}"
   "var sn=0;"
   "function l(){"
@@ -116,8 +116,10 @@ const char HTTP_LNK_SCAN[] PROGMEM =
 const char HTTP_FORM_WIFI[] PROGMEM =
   "<fieldset><legend><b>&nbsp;Wifi parameters&nbsp;</b></legend><form method='post' action='sv'>"
   "<input id='w' name='w' value='1' hidden><input id='r' name='r' value='1' hidden>"
-  "<br/><b>SSId</b> (" STA_SSID ")<br/><input id='s' name='s' length=32 placeholder='" STA_SSID "' value='{s1}'><br/>"
-  "<br/><b>Password</b></br><input id='p' name='p' length=64 type='password' placeholder='" STA_PASS "' value='{p1}'><br/>"
+  "<br/><b>AP1 SSId</b> (" STA_SSID1 ")<br/><input id='s1' name='s1' length=32 placeholder='" STA_SSID1 "' value='{s1}'><br/>"
+  "<br/><b>AP1 Password</b></br><input id='p1' name='p1' length=64 type='password' placeholder='" STA_PASS1 "' value='{p1}'><br/>"
+  "<br/><b>AP2 SSId</b> (" STA_SSID2 ")<br/><input id='s2' name='s2' length=32 placeholder='" STA_SSID2 "' value='{s2}'><br/>"
+  "<br/><b>AP2 Password</b></br><input id='p2' name='p2' length=64 type='password' placeholder='" STA_PASS2 "' value='{p2}'><br/>"
   "<br/><b>Hostname</b> ({h0})<br/><input id='h' name='h' length=32 placeholder='" WIFI_HOSTNAME" ' value='{h1}'><br/>";
 const char HTTP_FORM_MQTT[] PROGMEM =
   "<fieldset><legend><b>&nbsp;MQTT parameters&nbsp;</b></legend><form method='post' action='sv'>"
@@ -233,7 +235,7 @@ const char WEMO_SETUP_XML[] PROGMEM =
       "<modelName>Sonoff Socket</modelName>"
       "<modelNumber>3.1415</modelNumber>"
       "<UDN>uuid:{x2}</UDN>"
-      "<serialNumber>221517K0101769</serialNumber>"
+      "<serialNumber>{x3}</serialNumber>"
       "<binaryState>0</binaryState>"
       "<serviceList>"
         "<service>"
@@ -248,11 +250,6 @@ const char WEMO_SETUP_XML[] PROGMEM =
   "</root>\r\n"
   "\r\n";
 #endif  // USE_WEMO_EMULATION
-
-
-
-
-  
 
 #define DNS_PORT 53
 enum http_t {HTTP_OFF, HTTP_USER, HTTP_ADMIN, HTTP_MANAGER};
@@ -317,7 +314,7 @@ void stopWebserver()
 void beginWifiManager()
 {
   // setup AP
-  if ((WiFi.waitForConnectResult() == WL_CONNECTED) && (static_cast<uint32_t>(WiFi.localIP()) != 0)) {
+  if ((WiFi.status() == WL_CONNECTED) && (static_cast<uint32_t>(WiFi.localIP()) != 0)) {
     WiFi.mode(WIFI_AP_STA);
     addLog_P(LOG_LEVEL_DEBUG, PSTR("Wifimanager: Set AccessPoint and keep Station"));
   } else {
@@ -548,6 +545,7 @@ void handleWifi(boolean scan)
   page.replace("{v}", "Configure Wifi");
 
   if (scan) {
+    if (udpConnected) WiFiUDP::stopAll();  // Needed when WeMo is enabled
     int n = WiFi.scanNetworks();
     addLog_P(LOG_LEVEL_DEBUG, PSTR("Wifi: Scan done"));
 
@@ -613,6 +611,7 @@ void handleWifi(boolean scan)
       }
       page += "<br/>";
     }
+    udpConnected = false;
   } else {
     page += FPSTR(HTTP_LNK_SCAN);
   }
@@ -627,8 +626,10 @@ void handleWifi(boolean scan)
   }
   page.replace("{h0}", str);
   page.replace("{h1}", String(sysCfg.hostname));
-  page.replace("{s1}", String(sysCfg.sta_ssid));
-  page.replace("{p1}", String(sysCfg.sta_pwd));
+  page.replace("{s1}", String(sysCfg.sta_ssid1));
+  page.replace("{p1}", String(sysCfg.sta_pwd1));
+  page.replace("{s2}", String(sysCfg.sta_ssid2));
+  page.replace("{p2}", String(sysCfg.sta_pwd2));
   page += FPSTR(HTTP_FORM_END);
   if (_httpflag == HTTP_MANAGER) {
     page += FPSTR(HTTP_BTN_RSTRT);
@@ -726,9 +727,12 @@ void handleSave()
   case 1:
     strlcpy(sysCfg.hostname, (!strlen(webServer->arg("h").c_str())) ? WIFI_HOSTNAME : webServer->arg("h").c_str(), sizeof(sysCfg.hostname));
     if (strstr(sysCfg.hostname,"%")) strlcpy(sysCfg.hostname, DEF_WIFI_HOSTNAME, sizeof(sysCfg.hostname));
-    strlcpy(sysCfg.sta_ssid, (!strlen(webServer->arg("s").c_str())) ? STA_SSID : webServer->arg("s").c_str(), sizeof(sysCfg.sta_ssid));
-    strlcpy(sysCfg.sta_pwd, (!strlen(webServer->arg("p").c_str())) ? STA_PASS : webServer->arg("p").c_str(), sizeof(sysCfg.sta_pwd));
-    snprintf_P(log, sizeof(log), PSTR("HTTP: Wifi Hostname %s, SSID %s and Password %s"), sysCfg.hostname, sysCfg.sta_ssid, sysCfg.sta_pwd);
+    strlcpy(sysCfg.sta_ssid1, (!strlen(webServer->arg("s1").c_str())) ? STA_SSID1 : webServer->arg("s1").c_str(), sizeof(sysCfg.sta_ssid1));
+    strlcpy(sysCfg.sta_pwd1, (!strlen(webServer->arg("p1").c_str())) ? STA_PASS1 : webServer->arg("p1").c_str(), sizeof(sysCfg.sta_pwd1));
+    strlcpy(sysCfg.sta_ssid2, (!strlen(webServer->arg("s2").c_str())) ? STA_SSID2 : webServer->arg("s2").c_str(), sizeof(sysCfg.sta_ssid2));
+    strlcpy(sysCfg.sta_pwd2, (!strlen(webServer->arg("p2").c_str())) ? STA_PASS2 : webServer->arg("p2").c_str(), sizeof(sysCfg.sta_pwd2));
+    snprintf_P(log, sizeof(log), PSTR("HTTP: Wifi Hostname %s, SSID1 %s, Password1 %s, SSID2 %s, Password2 %s"),
+      sysCfg.hostname, sysCfg.sta_ssid1, sysCfg.sta_pwd1, sysCfg.sta_ssid2, sysCfg.sta_pwd2);
     addLog(LOG_LEVEL_INFO, log);
     result += F("<br/>Trying to connect device to network<br/>If it fails reconnect to try again");
     break;
@@ -747,6 +751,8 @@ void handleSave()
     sysCfg.seriallog_level = (!strlen(webServer->arg("ls").c_str())) ? SERIAL_LOG_LEVEL : atoi(webServer->arg("ls").c_str());
     sysCfg.weblog_level = (!strlen(webServer->arg("lw").c_str())) ? WEB_LOG_LEVEL : atoi(webServer->arg("lw").c_str());
     sysCfg.syslog_level = (!strlen(webServer->arg("ll").c_str())) ? SYS_LOG_LEVEL : atoi(webServer->arg("ll").c_str());
+    syslog_level = sysCfg.syslog_level;
+    syslog_timer = 0;
     strlcpy(sysCfg.syslog_host, (!strlen(webServer->arg("lh").c_str())) ? SYS_LOG_HOST : webServer->arg("lh").c_str(), sizeof(sysCfg.syslog_host));
     sysCfg.syslog_port = (!strlen(webServer->arg("lp").c_str())) ? SYS_LOG_PORT : atoi(webServer->arg("lp").c_str());
     sysCfg.tele_period = (!strlen(webServer->arg("lt").c_str())) ? TELE_PERIOD : atoi(webServer->arg("lt").c_str());
@@ -1060,7 +1066,8 @@ void handleInfo()
   page += F("<tr><td><b>Boot count</b></td><td>"); page += String(sysCfg.bootcount); page += F("</td></tr>");
   page += F("<tr><td><b>Reset reason</b></td><td>"); page += ESP.getResetReason(); page += F("</td></tr>");
   page += F("<tr><td>&nbsp;</td></tr>");
-  page += F("<tr><td><b>SSId (RSSI)</b></td><td>"); page += sysCfg.sta_ssid; page += F(" ("); page += WIFI_getRSSIasQuality(WiFi.RSSI()); page += F("%)</td></tr>");
+//  page += F("<tr><td><b>SSId (RSSI)</b></td><td>"); page += (sysCfg.sta_active)? sysCfg.sta_ssid2 : sysCfg.sta_ssid1; page += F(" ("); page += WIFI_getRSSIasQuality(WiFi.RSSI()); page += F("%)</td></tr>");
+  page += F("<tr><td><b>AP"); page += String(sysCfg.sta_active +1); page += F(" SSId (RSSI)</b></td><td>"); page += (sysCfg.sta_active)? sysCfg.sta_ssid2 : sysCfg.sta_ssid1; page += F(" ("); page += WIFI_getRSSIasQuality(WiFi.RSSI()); page += F("%)</td></tr>");
   page += F("<tr><td><b>Hostname</b></td><td>"); page += Hostname; page += F("</td></tr>");
   if (static_cast<uint32_t>(WiFi.localIP()) != 0) {
     page += F("<tr><td><b>IP address</b></td><td>"); page += WiFi.localIP().toString(); page += F("</td></tr>");
@@ -1119,17 +1126,10 @@ void handleRestart()
 void handleUPnPevent()
 {
   addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo basic event"));
+  
   String request = webServer->arg(0);
-
-  if(request.indexOf("<BinaryState>1</BinaryState>") > 0) {
-    Serial.println("Got Turn on request");
-    do_cmnd_power(1, 1);
-  }
-
-  if(request.indexOf("<BinaryState>0</BinaryState>") > 0) {
-    Serial.println("Got Turn off request");
-    do_cmnd_power(1, 0);
-  }
+  if(request.indexOf("State>1</Binary") > 0) do_cmnd_power(1, 1);
+  if(request.indexOf("State>0</Binary") > 0) do_cmnd_power(1, 0);
   webServer->send(200, "text/plain", "");
 }
 
@@ -1138,7 +1138,6 @@ void handleUPnPservice()
   addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo event service"));
 
   String eventservice_xml = FPSTR(WEMO_EVENTSERVICE_XML);
-            
   webServer->send(200, "text/plain", eventservice_xml); 
 }
 
@@ -1148,8 +1147,8 @@ void handleUPnPsetup()
 
   String setup_xml = FPSTR(WEMO_SETUP_XML);
   setup_xml.replace("{x1}", String(MQTTClient));
-  setup_xml.replace("{x2}", prepareUUID());
-            
+  setup_xml.replace("{x2}", wemo_UUID());
+  setup_xml.replace("{x3}", wemo_serial());
   webServer->send(200, "text/xml", setup_xml);
 }
 #endif  // USE_WEMO_EMULATION

@@ -1,4 +1,12 @@
-/* 2.0.21 20161130
+/* 2.1.0
+ * Add optional EXPERIMENTAL TLS to MQTT
+ * Fix MQTT payload handling
+ * Optimzed WeMo code
+ *  
+ * 2.0.21a 20161201
+ * Fix WeMo PowerPlug emulation
+ * 
+ * 2.0.21 20161130
  * Add Belkin WeMo PowerPlug emulation enabled with USE_WEMO_EMULATION in user_config.h (Heiko Krupp)
  * 
  * 2.0.20 20161130

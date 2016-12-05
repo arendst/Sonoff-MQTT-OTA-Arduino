@@ -244,9 +244,9 @@ void initSpiffs()
 #define WIFI_CONFIG_SEC   60   // seconds before restart
 #define WIFI_MANAGER_SEC  120  // seconds before restart
 #define WIFI_CHECKSEC     20   // seconds
-#define WIFI_RETRY        30
+#define WIFI_RETRY        16
 
-uint8_t _wificounter, _wifiretry, _wifistatus, _wpsresult, _wificonfigflag = 0, _wifiConfigCounter = 0;
+uint8_t _wificounter, _wifiretry, _wpsresult, _wificonfigflag = 0, _wifiConfigCounter = 0;
 
 int WIFI_getRSSIasQuality(int RSSI)
 {
@@ -306,6 +306,7 @@ boolean WIFI_WPSConfigDone(void)
 boolean WIFI_beginWPSConfig(void)
 {
   _wpsresult = 99;
+  WiFi.disconnect();
   if (!wifi_wps_disable()) return false;
   if (!wifi_wps_enable(WPS_TYPE_PBC)) return false;  // so far only WPS_TYPE_PBC is supported (SDK 2.0.0)
   if (!wifi_set_wps_cb((wps_st_cb_t) &WIFI_wps_status_cb)) return false;
@@ -313,19 +314,14 @@ boolean WIFI_beginWPSConfig(void)
   return true;
 }
 
-void WIFI_config(uint8_t type)
+void WIFI_config(int type)
 {
   if (!_wificonfigflag) {
-    if (udpConnected) WiFiUDP::stopAll();
-    WiFi.disconnect();        // Solve possible Wifi hangs
     _wificonfigflag = type;
     _wifiConfigCounter = WIFI_CONFIG_SEC;   // Allow up to WIFI_CONFIG_SECS seconds for phone to provide ssid/pswd
     _wificounter = _wifiConfigCounter +5;
     blinks = 1999;
-    if (_wificonfigflag == WIFI_RESTART) {
-      restartflag = 2;
-    }
-    else if (_wificonfigflag == WIFI_SMARTCONFIG) {
+    if (_wificonfigflag == WIFI_SMARTCONFIG) {
       addLog_P(LOG_LEVEL_INFO, PSTR("Smartconfig: Active for 1 minute"));
       WiFi.beginSmartConfig();
     }
@@ -339,87 +335,44 @@ void WIFI_config(uint8_t type)
     }
 #ifdef USE_WEBSERVER
     else if (_wificonfigflag == WIFI_MANAGER) {
-      addLog_P(LOG_LEVEL_INFO, PSTR("Wifimanager: Active for 1 minute"));
+      addLog_P(LOG_LEVEL_INFO, PSTR("Wifimanager: Active for 1 minute for initial request"));
       beginWifiManager();
     }
 #endif  // USE_WEBSERVER
   }
 }
 
-void WIFI_begin(uint8_t flag)
-{
-  const char PhyMode[] = " BGN";
-  char log[LOGSZ];
-
-  if (udpConnected) WiFiUDP::stopAll();
-  if (!strncmp(ESP.getSdkVersion(),"1.5.3",5)) {
-    addLog_P(LOG_LEVEL_DEBUG, "Wifi: Patch issue 2186");
-    WiFi.mode(WIFI_OFF);    // See https://github.com/esp8266/Arduino/issues/2186
-  }
-  WiFi.disconnect();
-  WiFi.mode(WIFI_STA);      // Disable AP mode
-//  if (WiFi.getPhyMode() != WIFI_PHY_MODE_11N) WiFi.setPhyMode(WIFI_PHY_MODE_11N);
-  if (!WiFi.getAutoConnect()) WiFi.setAutoConnect(true);
-//  WiFi.setAutoReconnect(true);
-  switch (flag) {
-  case 0:  // AP1
-  case 1:  // AP2
-    sysCfg.sta_active = flag;
-    break;
-  case 2:  // Toggle
-    sysCfg.sta_active ^= 1;
-  }        // 3: Current AP
-  if (strlen(sysCfg.sta_ssid2) == 0) sysCfg.sta_active = 0;
-  WiFi.begin((sysCfg.sta_active) ? sysCfg.sta_ssid2 : sysCfg.sta_ssid1, (sysCfg.sta_active) ? sysCfg.sta_pwd2 : sysCfg.sta_pwd1);
-  snprintf_P(log, sizeof(log), PSTR("Wifi: Connecting to AP%d %s (%s) in mode 11%c as %s..."),
-    sysCfg.sta_active +1, (sysCfg.sta_active) ? sysCfg.sta_ssid2 : sysCfg.sta_ssid1, (sysCfg.sta_active) ? sysCfg.sta_pwd2 : sysCfg.sta_pwd1, PhyMode[WiFi.getPhyMode() & 0x3], Hostname);
-  addLog(LOG_LEVEL_INFO, log);
-}
-
 void WIFI_check_ip()
 {
   if ((WiFi.status() == WL_CONNECTED) && (static_cast<uint32_t>(WiFi.localIP()) != 0)) {
     _wificounter = WIFI_CHECKSEC;
-    _wifiretry = WIFI_RETRY;    
-    addLog_P((_wifistatus != WL_CONNECTED) ? LOG_LEVEL_INFO : LOG_LEVEL_DEBUG_MORE, PSTR("Wifi: Connected"));
-    _wifistatus = WL_CONNECTED;
+    _wifiretry = WIFI_RETRY;
+    addLog_P(LOG_LEVEL_DEBUG_MORE, PSTR("Wifi: Connected"));
   } else {
-    _wifistatus = WiFi.status();
-    switch (_wifistatus) {
-      case WL_CONNECTED:
-        addLog_P(LOG_LEVEL_INFO, PSTR("Wifi: Connect failed as no IP address received"));
-        _wifistatus = 0;
-        _wifiretry = WIFI_RETRY;    
-        break;
+    switch (WiFi.status()) {
       case WL_NO_SSID_AVAIL:
-        addLog_P(LOG_LEVEL_INFO, PSTR("Wifi: Connect failed as AP cannot be reached"));
-        if (_wifiretry > (WIFI_RETRY / 2)) _wifiretry = WIFI_RETRY / 2;
-        else if (_wifiretry) _wifiretry = 0;
-        break;
       case WL_CONNECT_FAILED:
-        addLog_P(LOG_LEVEL_INFO, PSTR("Wifi: Connect failed with AP incorrect password"));
-        if (_wifiretry > (WIFI_RETRY / 2)) _wifiretry = WIFI_RETRY / 2;
-        else if (_wifiretry) _wifiretry = 0;
+        addLog_P(LOG_LEVEL_DEBUG, PSTR("Wifi: STATION_CONNECT_FAIL"));
+        WIFI_config(sysCfg.sta_config);
         break;
-      default:  // WL_IDLE_STATUS and WL_DISCONNECTED
-        if (!_wifiretry || (_wifiretry == (WIFI_RETRY / 2))) {
-          addLog_P(LOG_LEVEL_INFO, PSTR("Wifi: Connect failed with AP timeout"));
-        } else {
-          addLog_P(LOG_LEVEL_DEBUG, PSTR("Wifi: Attempting connection..."));
+      default:
+        addLog_P(LOG_LEVEL_DEBUG, PSTR("Wifi: STATION_IDLE"));
+        if ((_wifiretry == (WIFI_RETRY / 2)) && (WiFi.status() != WL_CONNECTED)) {
+//          WiFi.begin();
+          WiFi.begin(sysCfg.sta_ssid, sysCfg.sta_pwd);
         }
-    }
-    if (_wifiretry) {
-      if (_wifiretry == WIFI_RETRY) WIFI_begin(3);        // Select default SSID
-      if (_wifiretry == (WIFI_RETRY / 2)) WIFI_begin(2);  // Select alternate SSID
-      _wificounter = 1;
-      _wifiretry--;
-    } else {
-      WIFI_config(sysCfg.sta_config);
+        _wifiretry--;
+        if (_wifiretry) {
+          _wificounter = 1;
+        } else {
+          WIFI_config(sysCfg.sta_config);
+        }
+        break;
     }
   }
 }
 
-void WIFI_Check(uint8_t param)
+void WIFI_Check(int param)
 {
   char log[LOGSZ];
   
@@ -438,10 +391,9 @@ void WIFI_Check(uint8_t param)
         if ((_wificonfigflag == WIFI_SMARTCONFIG) && WiFi.smartConfigDone()) _wifiConfigCounter = 0;
         if ((_wificonfigflag == WIFI_WPSCONFIG) && WIFI_WPSConfigDone()) _wifiConfigCounter = 0;
         if (!_wifiConfigCounter) {
-          if (strlen(WiFi.SSID().c_str())) strlcpy(sysCfg.sta_ssid1, WiFi.SSID().c_str(), sizeof(sysCfg.sta_ssid1));
-          if (strlen(WiFi.psk().c_str())) strlcpy(sysCfg.sta_pwd1, WiFi.psk().c_str(), sizeof(sysCfg.sta_pwd1));
-          sysCfg.sta_active = 0;
-          snprintf_P(log, sizeof(log), PSTR("Wificonfig: SSID1 %s and Password1 %s"), sysCfg.sta_ssid1, sysCfg.sta_pwd1);
+          if (strlen(WiFi.SSID().c_str())) strlcpy(sysCfg.sta_ssid, WiFi.SSID().c_str(), sizeof(sysCfg.sta_ssid));
+          if (strlen(WiFi.psk().c_str())) strlcpy(sysCfg.sta_pwd, WiFi.psk().c_str(), sizeof(sysCfg.sta_pwd));
+          snprintf_P(log, sizeof(log), PSTR("Wificonfig: SSID %s and Password %s"), sysCfg.sta_ssid, sysCfg.sta_pwd);
           addLog(LOG_LEVEL_INFO, log);
         }
       }
@@ -462,12 +414,14 @@ void WIFI_Check(uint8_t param)
         } else {
           stopWebserver();
         }
+      }
 #ifdef USE_WEMO_EMULATION
+      if (WiFi.status() == WL_CONNECTED) {
         if (udpConnected == false) udpConnected = UDP_Connect();
-#endif  // USE_WEMO_EMULATION
       } else {
         udpConnected = false;
       }
+#endif  // USE_WEMO_EMULATION
 #endif  // USE_WEBSERVER
     }
   }
@@ -477,16 +431,30 @@ int WIFI_State()
 {
   int state;
 
-  if ((WiFi.status() == WL_CONNECTED) && (static_cast<uint32_t>(WiFi.localIP()) != 0)) state = WIFI_RESTART;
+  if ((WiFi.status() == WL_CONNECTED) && (static_cast<uint32_t>(WiFi.localIP()) != 0)) state = WIFI_STATUS;
   if (_wificonfigflag) state = _wificonfigflag;
   return state;
 }
 
+const char PhyMode[] = " BGN";
+
 void WIFI_Connect(char *Hostname)
 {
+  char log[LOGSZ];
+
   WiFi.persistent(false);   // Solve possible wifi init errors
+//  WiFi.setPhyMode(WIFI_PHY_MODE_11N);
+  if (!strncmp(ESP.getSdkVersion(),"1.5.3",5)) {
+    addLog_P(LOG_LEVEL_DEBUG, "Wifi: Patch issue 2186");
+    WiFi.mode(WIFI_OFF);    // See https://github.com/esp8266/Arduino/issues/2186
+  }
+  WiFi.mode(WIFI_STA);      // Disable AP mode
+  WiFi.disconnect();
+  WiFi.setAutoConnect(true);
   WiFi.hostname(Hostname);
-  _wifistatus = 0;
+  WiFi.begin(sysCfg.sta_ssid, sysCfg.sta_pwd);
+  snprintf_P(log, sizeof(log), PSTR("Wifi: Connecting to %s (%s) in mode 11%c as %s"), sysCfg.sta_ssid, sysCfg.sta_pwd, PhyMode[WiFi.getPhyMode() & 0x3], Hostname);
+  addLog(LOG_LEVEL_INFO, log);
   _wifiretry = WIFI_RETRY;
   _wificounter = 1;
 }
@@ -564,10 +532,10 @@ boolean UDP_Connect()
   boolean state = false;
   
   if (portUDP.beginMulticast(WiFi.localIP(), ipMulticast, portMulticast)) {
-    addLog_P(LOG_LEVEL_INFO, PSTR("UPnP: Multicast (re)joined"));
+    addLog_P(LOG_LEVEL_DEBUG, PSTR("UPnP: Multicast joined"));
     state = true;
   } else {
-    addLog_P(LOG_LEVEL_INFO, PSTR("UPnP: Multicast join failed"));
+    addLog_P(LOG_LEVEL_DEBUG, PSTR("UPnP: Multicast join failed"));
   }
   return state;
 }

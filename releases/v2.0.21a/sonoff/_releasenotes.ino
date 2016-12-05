@@ -1,22 +1,5 @@
-/* 2.1.2 20161204
- * Add support for second wifi AP
- * Update command WifiConfig
- * Fix possible WifiManager hang
- * 
- * 2.1.1a 20161203
- * Fix scan for wifi networks if WeMo is enabled
- * Fix syslog setting using web page
- *
- * 2.1.1 20161202
- * Add support for ElectroDragon second relay and button (only toggle with optional ButtonTopic)
- * 
- * 2.1.0 20161202
- * Add optional EXPERIMENTAL TLS to MQTT
- * Fix MQTT payload handling
- * Optimzed WeMo code
- *  
- * 2.0.21a 20161201
- * Fix WeMo PowerPlug emulation
+/* 2.0.21a 20161201
+ * Fix Belkin WeMo PowerPlug emulation
  * 
  * 2.0.21 20161130
  * Add Belkin WeMo PowerPlug emulation enabled with USE_WEMO_EMULATION in user_config.h (Heiko Krupp)

@@ -18,12 +18,10 @@
 #define SAVE_STATE             1            // [SaveState] Save changed power state to Flash (0 = disable, 1 = enable)
 
 // -- Wifi -----------------------------------
-#define STA_SSID1              "indebuurt2"      // [Ssid] Wifi SSID
-#define STA_PASS1              "VnsqrtnrsddbrN"  // [Password] Wifi password
-#define STA_SSID2              "indebuurt3"      // [Ssid2] Optional alternate AP Wifi SSID
-#define STA_PASS2              "VnsqrtnrsddbrN"  // [Password2] Optional alternate AP Wifi password 
+#define STA_SSID               "indebuurt3"      // [Ssid] Wifi SSID
+#define STA_PASS               "VnsqrtnrsddbrN"  // [Password] Wifi password
 #define WIFI_HOSTNAME          "%s-%04d"         // [Hostname] Expands to <MQTT_TOPIC>-<last 4 decimal chars of MAC address>
-#define WIFI_CONFIG_TOOL       WIFI_WPSCONFIG    // [WifiConfig] Default tool if wifi fails to connect (WIFI_RESTART, WIFI_SMARTCONFIG, WIFI_MANAGER or WIFI_WPSCONFIG)
+#define WIFI_CONFIG_TOOL       WIFI_WPSCONFIG    // [WifiConfig] Default tool if wifi fails to connect (WIFI_SMARTCONFIG, WIFI_MANAGER or WIFI_WPSCONFIG)
 
 // -- Syslog ---------------------------------
 #define SYS_LOG_HOST           "domus1"        // [LogHost] (Linux) syslog host
@@ -80,13 +78,13 @@
   #define DOMOTICZ_IN_TOPIC      "domoticz/in"  // [DomoticzInTopic]
   #define DOMOTICZ_OUT_TOPIC     "domoticz/out" // [DomoticzOutTopic]
   #define DOMOTICZ_RELAY_IDX1    0          // [DomoticzIdx] Sonoff Relay 1 (0 = disable domoticz)
-  #define DOMOTICZ_RELAY_IDX2    0          // [2/DomoticzIdx] Sonoff Dual Relay 2
+  #define DOMOTICZ_RELAY_IDX2    0          // Sonoff Dual Relay 2
   #define DOMOTICZ_KEY_IDX1      0          // [DomoticzKeyIdx] Button single press (0 = disable)
-  #define DOMOTICZ_KEY_IDX2      0          // [2/DomoticzKeyIdx] Button double press (0 = disable)
+  #define DOMOTICZ_KEY_IDX2      0          // Button double press (0 = disable)
   #define DOMOTICZ_UPDATE_TIMER  0          // [DomoticzUpdateTimer] Send relay status (0 = disable, 1 - 3600 seconds) (Optional)
 
 // -- HTTP -----------------------------------
-#define USE_WEBSERVER                       // Enable web server and wifi manager (+43k code, +2k mem) - Disable by //
+#define USE_WEBSERVER                       // Enable web server and wifi manager (+37k code, +2k mem) - Disable by //
   #define USE_WEMO_EMULATION                // Enable Belkin WeMo PowerSwitch emulation for Alexa (+4k code, +2k mem)
   #define WEB_SERVER           2            // [WebServer] Web server (0 = Off, 1 = Start as User, 2 = Start as Admin)
 

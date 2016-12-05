@@ -1,12 +1,7 @@
-/* 2.1.2 20161204
- * Add support for second wifi AP
- * Update command WifiConfig
- * Fix possible WifiManager hang
- * 
- * 2.1.1a 20161203
+/* 2.1.1a 20161203
  * Fix scan for wifi networks if WeMo is enabled
  * Fix syslog setting using web page
- *
+ * 
  * 2.1.1 20161202
  * Add support for ElectroDragon second relay and button (only toggle with optional ButtonTopic)
  * 

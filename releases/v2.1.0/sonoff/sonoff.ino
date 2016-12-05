@@ -10,7 +10,7 @@
  * ====================================================
 */
 
-#define VERSION                0x02001500   // 2.0.21
+#define VERSION                0x02010000   // 2.1.0
 
 #define SONOFF                 1            // Sonoff, Sonoff SV, Sonoff Dual, Sonoff TH 10A/16A, S20 Smart Socket, 4 Channel
 #define SONOFF_POW             9            // Sonoff Pow
@@ -68,6 +68,10 @@ enum swtch_t {TOGGLE, FOLLOW, FOLLOW_INV};
 #define SWITCH_MODE            TOGGLE       // TOGGLE, FOLLOW or FOLLOW_INV (the wall switch state)
 #endif
 
+#ifndef MQTT_FINGERPRINT
+#define MQTT_FINGERPRINT       "A5 02 FF 13 99 9F 8B 39 8E F1 83 4F 11 23 65 0B 32 36 FC 07"
+#endif
+
 #define DEF_WIFI_HOSTNAME      "%s-%04d"    // Expands to <MQTT_TOPIC>-<last 4 decimal chars of MAC address>
 
 #define HLW_PREF_PULSE         12530        // was 4975us = 201Hz = 1000W
@@ -76,18 +80,22 @@ enum swtch_t {TOGGLE, FOLLOW, FOLLOW_INV};
 
 #define MQTT_UNITS             0            // Default do not show value units (Hr, Sec, V, A, W etc.)
 #define MQTT_SUBTOPIC          "POWER"      // Default MQTT subtopic (POWER or LIGHT)
+#define MQTT_RETRY_SECS        10           // Seconds to retry MQTT connection
 #define APP_POWER              0            // Default saved power state Off
 #define MAX_DEVICE             1            // Max number of devices
 
 #define STATES                 10           // loops per second
-#define MQTT_RETRY_SECS        10           // Seconds to retry MQTT connection
 #define SYSLOG_TIMER           600          // Seconds to restore syslog_level
 
 #define INPUT_BUFFER_SIZE      100          // Max number of characters in serial buffer
 #define TOPSZ                  60           // Max number of characters in topic string
 #define MESSZ                  240          // Max number of characters in JSON message string
 #define LOGSZ                  128          // Max number of characters in log string
-#define MAX_LOG_LINES          70           // Max number of lines in weblog
+#ifdef USE_MQTT_TLS
+  #define MAX_LOG_LINES        10           // Max number of lines in weblog
+#else
+  #define MAX_LOG_LINES        70           // Max number of lines in weblog
+#endif
 
 #define APP_BAUDRATE           115200       // Default serial baudrate
 
@@ -196,6 +204,7 @@ struct SYSCFG {
   unsigned long hlw_kWhtoday;
   uint16_t      hlw_kWhdoy;
   uint8_t       switchmode;
+  char          mqtt_fingerprint[60];
 } sysCfg;
 
 struct TIME_T {
@@ -236,7 +245,7 @@ char MQTTClient[33];                  // Composed MQTT Clientname
 uint8_t mqttcounter = 0;              // MQTT connection retry counter
 unsigned long timerxs = 0;            // State loop timer
 int state = 0;                        // State per second flag
-int mqttflag = 1;                     // MQTT connection messages flag
+int mqttflag = 2;                     // MQTT connection messages flag
 int otaflag = 0;                      // OTA state flag
 int otaok;                            // OTA result
 int restartflag = 0;                  // Sonoff restart flag
@@ -248,16 +257,13 @@ byte logidx = 0;                      // Index in Web log buffer
 byte Maxdevice = MAX_DEVICE;          // Max number of devices supported
 int status_update_timer = 0;          // Refresh initial status
 
-WiFiClient espClient;                 // Wifi Client
+#ifdef USE_MQTT_TLS
+  WiFiClientSecure espClient;         // Wifi Secure Client
+#else
+  WiFiClient espClient;               // Wifi Client
+#endif
 PubSubClient mqttClient(espClient);   // MQTT Client
-WiFiUDP portUDP;                      // UDP Syslog
-
-#ifdef USE_WEMO_EMULATION             // Belkin WeMo PowerSwitch
-  char packetBuffer[UDP_TX_PACKET_MAX_SIZE]; // buffer to hold incoming UDP packet
-  boolean udpConnected = false;
-  IPAddress ipMulticast(239, 255, 255, 250); // Simple Service Discovery Protocol (SSDP) 
-  uint32_t portMulticast = 1900;      // Multicast address and port
-#endif  // USE_WEMO_EMULATION
+WiFiUDP portUDP;                      // UDP Syslog and Alexa
 
 uint8_t power;                        // Current copy of sysCfg.power
 byte syslog_level;                    // Current copy of sysCfg.syslog_level
@@ -270,6 +276,15 @@ uint8_t lastbutton = NOT_PRESSED;     // Last button state
 uint8_t holdcount = 0;                // Timer recording button hold
 uint8_t multiwindow = 0;              // Max time between button presses to record press count
 uint8_t multipress = 0;               // Number of button presses within multiwindow
+
+boolean udpConnected = false;
+#ifdef USE_WEMO_EMULATION
+  #define WEMO_BUFFER_SIZE 200        // Max UDP buffer size needed for M-SEARCH message
+
+  char packetBuffer[WEMO_BUFFER_SIZE]; // buffer to hold incoming UDP packet
+  IPAddress ipMulticast(239, 255, 255, 250); // Simple Service Discovery Protocol (SSDP) 
+  uint32_t portMulticast = 1900;      // Multicast address and port
+#endif  // USE_WEMO_EMULATION
 
 #ifdef USE_WALL_SWITCH
   uint8_t lastwallswitch;             // Last wall switch state
@@ -322,6 +337,7 @@ void CFG_Default()
   strlcpy(sysCfg.otaUrl, OTA_URL, sizeof(sysCfg.otaUrl));
   strlcpy(sysCfg.mqtt_host, MQTT_HOST, sizeof(sysCfg.mqtt_host));
   sysCfg.mqtt_port = MQTT_PORT;
+  strlcpy(sysCfg.mqtt_fingerprint, MQTT_FINGERPRINT, sizeof(sysCfg.mqtt_fingerprint));
   strlcpy(sysCfg.mqtt_client, MQTT_CLIENT_ID, sizeof(sysCfg.mqtt_client));
   strlcpy(sysCfg.mqtt_user, MQTT_USER, sizeof(sysCfg.mqtt_user));
   strlcpy(sysCfg.mqtt_pwd, MQTT_PASS, sizeof(sysCfg.mqtt_pwd));
@@ -458,6 +474,10 @@ void CFG_Delta()
     if (sysCfg.version < 0x02001200) {  // 2.0.18 - Add parameter
       sysCfg.switchmode = SWITCH_MODE;
     }
+    if (sysCfg.version < 0x02010000) {  // 2.1.0 - Add parameter
+      strlcpy(sysCfg.mqtt_fingerprint, MQTT_FINGERPRINT, sizeof(sysCfg.mqtt_fingerprint));
+    }
+    
     sysCfg.version = VERSION;
   }
 }
@@ -609,6 +629,30 @@ void mqtt_reconnect()
   char stopic[TOPSZ], svalue[TOPSZ], log[LOGSZ];
 
   mqttcounter = MQTT_RETRY_SECS;
+
+  if (udpConnected) WiFiUDP::stopAll();
+  if (mqttflag > 1) {
+#ifdef USE_MQTT_TLS
+    addLog_P(LOG_LEVEL_INFO, PSTR("MQTT: Verify TLS fingerprint..."));
+    if (!espClient.connect(sysCfg.mqtt_host, sysCfg.mqtt_port)) {
+      snprintf_P(log, sizeof(log), PSTR("MQTT: TLS CONNECT FAILED USING WRONG MQTTHost (%s) or MQTTPort (%d). Retry in %d seconds"),
+        sysCfg.mqtt_host, sysCfg.mqtt_port, mqttcounter);
+      addLog(LOG_LEVEL_DEBUG, log);
+      return;
+    }
+    if (espClient.verify(sysCfg.mqtt_fingerprint, sysCfg.mqtt_host)) {
+      addLog_P(LOG_LEVEL_INFO, PSTR("MQTT: Verified"));
+    } else {
+      addLog_P(LOG_LEVEL_DEBUG, PSTR("MQTT: WARNING - Insecure connection due to invalid Fingerprint"));
+    }
+#endif  // USE_MQTT_TLS
+    mqttClient.setServer(sysCfg.mqtt_host, sysCfg.mqtt_port);
+    mqttClient.setCallback(mqttDataCb);
+    mqttflag = 1;
+    mqttcounter = 1;
+    return;
+  }
+  
   addLog_P(LOG_LEVEL_INFO, PSTR("MQTT: Attempting connection..."));
   if (sysCfg.message_format == JSON) {
     snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/TELEMETRY"), PUB_PREFIX2, sysCfg.mqtt_topic);
@@ -620,6 +664,7 @@ void mqtt_reconnect()
   if (mqttClient.connect(MQTTClient, sysCfg.mqtt_user, sysCfg.mqtt_pwd, stopic, 0, 0, svalue)) {
     addLog_P(LOG_LEVEL_INFO, PSTR("MQTT: Connected"));
     mqttcounter = 0;
+    udpConnected = false;
     mqtt_connected();
   } else {
     snprintf_P(log, sizeof(log), PSTR("MQTT: CONNECT FAILED, rc %d. Retry in %d seconds"), mqttClient.state(), mqttcounter);
@@ -638,7 +683,7 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
 
   strncpy(topicBuf, topic, sizeof(topicBuf));
   memcpy(dataBuf, data, sizeof(dataBuf));
-  dataBuf[sizeof(dataBuf)] = 0;
+  dataBuf[sizeof(dataBuf)-1] = 0;
 
   snprintf_P(svalue, sizeof(svalue), PSTR("MQTT: Receive topic %s, data size %d, data %s"), topicBuf, i, dataBuf);
   addLog(LOG_LEVEL_DEBUG, svalue);
@@ -1011,6 +1056,15 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
       }
       snprintf_P(svalue, sizeof(svalue), PSTR("%d"), sysCfg.mqtt_port);
     }
+#ifdef USE_MQTT_TLS
+    else if (!strcmp(type,"MQTTFINGERPRINT")) {
+      if ((data_len > 0) && (data_len < sizeof(sysCfg.mqtt_fingerprint))) {
+        strlcpy(sysCfg.mqtt_fingerprint, (payload == 1) ? MQTT_FINGERPRINT : dataBuf, sizeof(sysCfg.mqtt_fingerprint));
+        restartflag = 2;
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("%s"), sysCfg.mqtt_fingerprint);
+    }
+#endif
     else if (!grpflg && !strcmp(type,"MQTTCLIENT")) {
       if ((data_len > 0) && (data_len < sizeof(sysCfg.mqtt_client))) {
         strlcpy(sysCfg.mqtt_client, (payload == 1) ? MQTT_CLIENT_ID : dataBuf, sizeof(sysCfg.mqtt_client));
@@ -2162,8 +2216,6 @@ void setup()
   WIFI_Connect(Hostname);
 
   getClient(MQTTClient, sysCfg.mqtt_client, sizeof(MQTTClient));
-  mqttClient.setServer(sysCfg.mqtt_host, sysCfg.mqtt_port);
-  mqttClient.setCallback(mqttDataCb);
 
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, (LED_INVERTED) ? !blinkstate : blinkstate);
