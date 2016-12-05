@@ -10,7 +10,7 @@
  * ====================================================
 */
 
-#define VERSION                0x02010100   // 2.1.1
+#define VERSION                0x02010200   // 2.1.2
 
 #define SONOFF                 1            // Sonoff, Sonoff SV, Sonoff Dual, Sonoff TH 10A/16A, S20 Smart Socket, 4 Channel
 #define SONOFF_POW             9            // Sonoff Pow
@@ -27,7 +27,7 @@ enum log_t   {LOG_LEVEL_NONE, LOG_LEVEL_ERROR, LOG_LEVEL_INFO, LOG_LEVEL_DEBUG, 
 enum week_t  {Last, First, Second, Third, Fourth}; 
 enum dow_t   {Sun=1, Mon, Tue, Wed, Thu, Fri, Sat};
 enum month_t {Jan=1, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec};
-enum wifi_t  {WIFI_STATUS, WIFI_SMARTCONFIG, WIFI_MANAGER, WIFI_WPSCONFIG};
+enum wifi_t  {WIFI_RESTART, WIFI_SMARTCONFIG, WIFI_MANAGER, WIFI_WPSCONFIG};
 enum msgf_t  {LEGACY, JSON, MAX_FORMAT};
 enum swtch_t {TOGGLE, FOLLOW, FOLLOW_INV};
 
@@ -143,6 +143,8 @@ const char commands[MAX_BUTTON_COMMANDS][14] PROGMEM = {
   {"restart 1"},      // Press button six times
   {"upgrade 1"}};     // Press button seven times
 
+const char wificfg[4][12] PROGMEM = { "Restart", "Smartconfig", "Wifimanager", "WPSconfig" };
+
 struct SYSCFG {
   unsigned long cfg_holder;
   unsigned long saveFlag;
@@ -150,8 +152,8 @@ struct SYSCFG {
   byte          seriallog_level;
   byte          syslog_level;
   char          syslog_host[32];
-  char          sta_ssid[32];
-  char          sta_pwd[64];
+  char          sta_ssid1[32];
+  char          sta_pwd1[64];
   char          otaUrl[80];
   char          mqtt_host[32];
   char          mqtt_grptopic[32];
@@ -205,6 +207,10 @@ struct SYSCFG {
   uint16_t      hlw_kWhdoy;
   uint8_t       switchmode;
   char          mqtt_fingerprint[60];
+  byte          sta_active;
+  char          sta_ssid2[33];
+  char          sta_pwd2[65];
+
 } sysCfg;
 
 struct TIME_T {
@@ -249,7 +255,7 @@ int mqttflag = 2;                     // MQTT connection messages flag
 int otaflag = 0;                      // OTA state flag
 int otaok;                            // OTA result
 int restartflag = 0;                  // Sonoff restart flag
-int wificheckflag = WIFI_STATUS;      // Wifi state flag
+int wificheckflag = WIFI_RESTART;     // Wifi state flag
 int uptime = 0;                       // Current uptime in hours
 int tele_period = 0;                  // Tele period timer
 String Log[MAX_LOG_LINES];            // Web log buffer
@@ -331,8 +337,11 @@ void CFG_Default()
   sysCfg.syslog_level = SYS_LOG_LEVEL;
   strlcpy(sysCfg.syslog_host, SYS_LOG_HOST, sizeof(sysCfg.syslog_host));
   sysCfg.syslog_port = SYS_LOG_PORT;
-  strlcpy(sysCfg.sta_ssid, STA_SSID, sizeof(sysCfg.sta_ssid));
-  strlcpy(sysCfg.sta_pwd, STA_PASS, sizeof(sysCfg.sta_pwd));
+  sysCfg.sta_active = 0;
+  strlcpy(sysCfg.sta_ssid1, STA_SSID1, sizeof(sysCfg.sta_ssid1));
+  strlcpy(sysCfg.sta_pwd1, STA_PASS1, sizeof(sysCfg.sta_pwd1));
+  strlcpy(sysCfg.sta_ssid2, STA_SSID2, sizeof(sysCfg.sta_ssid2));
+  strlcpy(sysCfg.sta_pwd2, STA_PASS2, sizeof(sysCfg.sta_pwd2));
   sysCfg.sta_config = WIFI_CONFIG_TOOL;
   strlcpy(sysCfg.hostname, WIFI_HOSTNAME, sizeof(sysCfg.hostname));
   strlcpy(sysCfg.otaUrl, OTA_URL, sizeof(sysCfg.otaUrl));
@@ -478,7 +487,11 @@ void CFG_Delta()
     if (sysCfg.version < 0x02010000) {  // 2.1.0 - Add parameter
       strlcpy(sysCfg.mqtt_fingerprint, MQTT_FINGERPRINT, sizeof(sysCfg.mqtt_fingerprint));
     }
-    
+    if (sysCfg.version < 0x02010200) {  // 2.1.2 - Add parameter
+      sysCfg.sta_active = 0;
+      strlcpy(sysCfg.sta_ssid2, STA_SSID2, sizeof(sysCfg.sta_ssid2));
+      strlcpy(sysCfg.sta_pwd2, STA_PASS2, sizeof(sysCfg.sta_pwd2));
+    }    
     sysCfg.version = VERSION;
   }
 }
@@ -855,11 +868,11 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
       }          
       if ((payload == 0) || (payload == 3)) {
         if (sysCfg.message_format == JSON) {
-          snprintf_P(svalue, sizeof(svalue), PSTR("{\"LOG\":{\"Seriallog\":%d, \"Weblog\":%d, \"Syslog\":%d, \"LogHost\":\"%s\", \"SSId\":\"%s\", \"Password\":\"%s\", \"TelePeriod\":%d}}"),
-            sysCfg.seriallog_level, sysCfg.weblog_level, sysCfg.syslog_level, sysCfg.syslog_host, sysCfg.sta_ssid, sysCfg.sta_pwd, sysCfg.tele_period);
+          snprintf_P(svalue, sizeof(svalue), PSTR("{\"LOG\":{\"Seriallog\":%d, \"Weblog\":%d, \"Syslog\":%d, \"LogHost\":\"%s\", \"SSId1\":\"%s\", \"Password1\":\"%s\", \"SSId2\":\"%s\", \"Password2\":\"%s\", \"TelePeriod\":%d}}"),
+            sysCfg.seriallog_level, sysCfg.weblog_level, sysCfg.syslog_level, sysCfg.syslog_host, sysCfg.sta_ssid1, sysCfg.sta_pwd1, sysCfg.sta_ssid2, sysCfg.sta_pwd2, sysCfg.tele_period);
         } else {
-          snprintf_P(svalue, sizeof(svalue), PSTR("LOG: Seriallog %d, Weblog %d, Syslog %d, LogHost %s, SSId %s, Password %s, TelePeriod %d"),
-            sysCfg.seriallog_level, sysCfg.weblog_level, sysCfg.syslog_level, sysCfg.syslog_host, sysCfg.sta_ssid, sysCfg.sta_pwd, sysCfg.tele_period);
+          snprintf_P(svalue, sizeof(svalue), PSTR("LOG: Seriallog %d, Weblog %d, Syslog %d, LogHost %s, SSId1 %s, Password1 %s, SSId2 %s, Password2 %s, TelePeriod %d"),
+            sysCfg.seriallog_level, sysCfg.weblog_level, sysCfg.syslog_level, sysCfg.syslog_host, sysCfg.sta_ssid1, sysCfg.sta_pwd1, sysCfg.sta_ssid2, sysCfg.sta_pwd2, sysCfg.tele_period);
         }
         if (payload == 0) mqtt_publish(stopic, svalue);
       }          
@@ -980,19 +993,51 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
       }
       snprintf_P(svalue, sizeof(svalue), PSTR("%d"), sysCfg.syslog_port);
     }
-    else if (!strcmp(type,"SSID")) {
-      if ((data_len > 0) && (data_len < sizeof(sysCfg.sta_ssid))) {
-        strlcpy(sysCfg.sta_ssid, (payload == 1) ? STA_SSID : dataBuf, sizeof(sysCfg.sta_ssid));
+    else if (!strcmp(type,"AP")) {
+      if ((data_len > 0) && (payload >= 0) && (payload <= 2)) {
+        switch (payload) {
+        case 0:  // Toggle
+          sysCfg.sta_active ^= 1;
+          break;
+        case 1:  // AP1
+        case 2:  // AP2
+          sysCfg.sta_active = payload -1;
+        }
         restartflag = 2;
       }
-      snprintf_P(svalue, sizeof(svalue), PSTR("%s"), sysCfg.sta_ssid);
+      snprintf_P(svalue, sizeof(svalue), PSTR("%d (%s)"), sysCfg.sta_active +1, (sysCfg.sta_active) ? sysCfg.sta_ssid2 : sysCfg.sta_ssid1);
     }
-    else if (!strcmp(type,"PASSWORD")) {
-      if ((data_len > 0) && (data_len < sizeof(sysCfg.sta_pwd))) {
-        strlcpy(sysCfg.sta_pwd, (payload == 1) ? STA_PASS : dataBuf, sizeof(sysCfg.sta_pwd));
+    else if (!strcmp(type,"SSID") || !strcmp(type,"SSID1")) {
+      if ((data_len > 0) && (data_len < sizeof(sysCfg.sta_ssid1))) {
+        strlcpy(sysCfg.sta_ssid1, (payload == 1) ? STA_SSID1 : dataBuf, sizeof(sysCfg.sta_ssid1));
+        sysCfg.sta_active = 0;
         restartflag = 2;
       }
-      snprintf_P(svalue, sizeof(svalue), PSTR("%s"), sysCfg.sta_pwd);
+      snprintf_P(svalue, sizeof(svalue), PSTR("%s"), sysCfg.sta_ssid1);
+    }
+    else if (!strcmp(type,"PASSWORD") || !strcmp(type,"PASSWORD1")) {
+      if ((data_len > 0) && (data_len < sizeof(sysCfg.sta_pwd1))) {
+        strlcpy(sysCfg.sta_pwd1, (payload == 1) ? STA_PASS1 : dataBuf, sizeof(sysCfg.sta_pwd1));
+        sysCfg.sta_active = 0;
+        restartflag = 2;
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("%s"), sysCfg.sta_pwd1);
+    }
+    else if (!strcmp(type,"SSID2")) {
+      if ((data_len > 0) && (data_len < sizeof(sysCfg.sta_ssid2))) {
+        strlcpy(sysCfg.sta_ssid2, (payload == 1) ? STA_SSID2 : dataBuf, sizeof(sysCfg.sta_ssid2));
+        sysCfg.sta_active = 1;
+        restartflag = 2;
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("%s"), sysCfg.sta_ssid2);
+    }
+    else if (!strcmp(type,"PASSWORD2")) {
+      if ((data_len > 0) && (data_len < sizeof(sysCfg.sta_pwd2))) {
+        strlcpy(sysCfg.sta_pwd2, (payload == 1) ? STA_PASS2 : dataBuf, sizeof(sysCfg.sta_pwd2));
+        sysCfg.sta_active = 1;
+        restartflag = 2;
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("%s"), sysCfg.sta_pwd2);
     }
     else if (!grpflg && !strcmp(type,"HOSTNAME")) {
       if ((data_len > 0) && (data_len < sizeof(sysCfg.hostname))) {
@@ -1004,19 +1049,18 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
       snprintf_P(svalue, sizeof(svalue), PSTR("%s"), sysCfg.hostname);
     }
     else if (!strcmp(type,"WIFICONFIG") || !strcmp(type,"SMARTCONFIG")) {
-      if (data_len > 0) {
-        if (payload == 0) payload = sysCfg.sta_config;
-        if ((payload > 0) && (payload <= 3)) {
-          wificheckflag = payload;
-          sysCfg.sta_config = wificheckflag;
-          snprintf_P(svalue, sizeof(svalue), PSTR("%s selected"), (payload == WIFI_SMARTCONFIG) ? "Smartconfig" : (payload == WIFI_MANAGER) ? "Wifimanager" : "WPSconfig");
-          if (WIFI_State() != WIFI_STATUS) {
-            snprintf_P(svalue, sizeof(svalue), PSTR("%s on restart"), svalue);
-            restartflag = 2;
-          }
+      if ((data_len > 0) && (payload >= WIFI_RESTART) && (payload <= WIFI_WPSCONFIG)) {
+        sysCfg.sta_config = payload;
+        wificheckflag = sysCfg.sta_config;
+        snprintf_P(stemp1, sizeof(stemp1), wificfg[sysCfg.sta_config]);
+        snprintf_P(svalue, sizeof(svalue), PSTR("%s selected"), stemp1);
+        if (WIFI_State() != WIFI_RESTART) {
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s after restart"), svalue);
+          restartflag = 2;
         }
       } else {
-        snprintf_P(svalue, sizeof(svalue), PSTR("1 to start smartconfig, 2 to start wifimanager, 3 to start wpsconfig. Default is %d"), sysCfg.sta_config);
+        snprintf_P(stemp1, sizeof(stemp1), wificfg[sysCfg.sta_config]);
+        snprintf_P(svalue, sizeof(svalue), PSTR("%d (%s)"), sysCfg.sta_config, stemp1);
       }
     }
 #ifdef USE_WALL_SWITCH
@@ -1341,7 +1385,7 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
   if (type == NULL) {
     blinks = 1;
     snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/COMMANDS"), PUB_PREFIX, sysCfg.mqtt_topic);
-    snprintf_P(svalue, sizeof(svalue), PSTR("Status, SaveData, SaveSate, Upgrade, Otaurl, Restart, Reset, WifiConfig, Seriallog, Syslog, LogHost, LogPort, SSId, Password%s"), (!grpflg) ? ", Hostname" : "");
+    snprintf_P(svalue, sizeof(svalue), PSTR("Status, SaveData, SaveSate, Upgrade, Otaurl, Restart, Reset, WifiConfig, Seriallog, Syslog, LogHost, LogPort, SSId1, Password1, SSId2, Password2, AP%s"), (!grpflg) ? ", Hostname" : "");
 #ifdef USE_WEBSERVER
     snprintf_P(svalue, sizeof(svalue), PSTR("%s, Weblog, Webserver"), svalue);
 #endif
@@ -2104,7 +2148,7 @@ void stateloop()
     break;
   case (STATES/10)*6:
     WIFI_Check(wificheckflag);
-    wificheckflag = WIFI_STATUS;
+    wificheckflag = WIFI_RESTART;
     break;
   case (STATES/10)*8:
     if ((WiFi.status() == WL_CONNECTED) && (!mqttClient.connected())) {
