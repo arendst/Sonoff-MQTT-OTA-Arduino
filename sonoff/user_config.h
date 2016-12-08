@@ -126,7 +126,7 @@
  * Wall switch and HC-SR501
 \*-------------------------------------------------------------------------------------------*/
   #define SWITCH_PIN           14           // GPIO 14 = Standard wall switch to Gnd (Sonoff_TH10A(16A), Sonoff SV)
-  #define SWITCH_MODE          TOGGLE       // [SwitchMode] TOGGLE, FOLLOW or FOLLOW_INV (the wall switch state)
+  #define SWITCH_MODE          TOGGLE       // [SwitchMode] TOGGLE, FOLLOW, FOLLOW_INV, PUSHBUTTON or PUSHBUTTON_INV (the wall switch state)
 //  #define USE_WALL_SWITCH                   // Enable the use of a standard wall switch to control the relay
 /*-------------------------------------------------------------------------------------------*\
  * Single wire devices DS18B20 and DS18S20
@@ -190,7 +190,7 @@
  * Wall switch and HC-SR501
 \*-------------------------------------------------------------------------------------------*/
   #define SWITCH_PIN           14           // GPIO 14 = Standard wall switch to Gnd
-  #define SWITCH_MODE          TOGGLE       // [SwitchMode] TOGGLE, FOLLOW or FOLLOW_INV (the wall switch state)
+  #define SWITCH_MODE          TOGGLE       // [SwitchMode] TOGGLE, FOLLOW, FOLLOW_INV, PUSHBUTTON or PUSHBUTTON_INV (the wall switch state)
 //  #define USE_WALL_SWITCH                   // Enable the use of a standard wall switch to control the relay
 /*-------------------------------------------------------------------------------------------*\
  * Single wire devices DS18B20 and DS18S20
