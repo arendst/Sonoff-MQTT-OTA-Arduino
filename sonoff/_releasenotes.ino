@@ -1,3 +1,6 @@
+/* 3.0.1 20161208
+* Add support for Push Button
+
 /* 3.0.0 20161208
  * Migrate and clean-up flash layout 
  *   Settings from version 2.x are saved but settings from version 3.x can not be used with version 2.x
