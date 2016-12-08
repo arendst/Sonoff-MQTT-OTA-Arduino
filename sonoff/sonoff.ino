@@ -10,7 +10,7 @@
  * ====================================================
 */
 
-#define VERSION                0x03000000   // 3.0.0
+#define VERSION                0x03000100   // 3.0.1
 
 #define SONOFF                 1            // Sonoff, Sonoff SV, Sonoff Dual, Sonoff TH 10A/16A, S20 Smart Socket, 4 Channel
 #define SONOFF_POW             9            // Sonoff Pow
@@ -29,7 +29,7 @@ enum dow_t   {Sun=1, Mon, Tue, Wed, Thu, Fri, Sat};
 enum month_t {Jan=1, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec};
 enum wifi_t  {WIFI_RESTART, WIFI_SMARTCONFIG, WIFI_MANAGER, WIFI_WPSCONFIG};
 enum msgf_t  {LEGACY, JSON, MAX_FORMAT};
-enum swtch_t {TOGGLE, FOLLOW, FOLLOW_INV};
+enum swtch_t {TOGGLE, FOLLOW, FOLLOW_INV, PUSHBUTTON, PUSHBUTTON_INV};
 
 #include "user_config.h"
 
@@ -67,7 +67,7 @@ enum swtch_t {TOGGLE, FOLLOW, FOLLOW_INV};
 #define CHANNEL_8              8            // Future use
 
 #ifndef SWITCH_MODE
-#define SWITCH_MODE            TOGGLE       // TOGGLE, FOLLOW or FOLLOW_INV (the wall switch state)
+#define SWITCH_MODE            TOGGLE       // TOGGLE, FOLLOW, FOLLOW_INV, PUSHBUTTON or PUSHBUTTON_INV (the wall switch state)
 #endif
 
 #ifndef MQTT_FINGERPRINT
@@ -2249,6 +2249,16 @@ void stateloop()
       break;
     case FOLLOW_INV:
       flag = ~button & 0x01;   // Follow inverted wall switch state
+      break;
+    case PUSHBUTTON:
+      if (button == 1) {
+        flag = 2;                // Toggle with push button
+      }
+      break;
+    case PUSHBUTTON_INV:
+      if (button == 0) {
+        flag = 2;                // Toggle with inverted push button
+      }
     }
     if (mqttClient.connected() && strcmp(sysCfg.mqtt_topic2,"0")) {
       send_button_power(1, flag);   // Execute commend via MQTT   
