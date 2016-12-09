@@ -580,7 +580,7 @@ void CFG_Delta()
 
 /********************************************************************************************/
 
-void getClient(char* output, char* input, byte size)
+void getClient(char* output, const char* input, byte size)
 {
   char *token;
   uint8_t digits = 0;
