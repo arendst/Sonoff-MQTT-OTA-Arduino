@@ -31,10 +31,16 @@ extern "C" {
 #include "spi_flash.h"
 }
 
-#define SPIFFS_CONFIG       "/config.ini"
 #define SPIFFS_START        ((uint32_t)&_SPIFFS_start - 0x40200000) / SPI_FLASH_SEC_SIZE
 #define SPIFFS_END          ((uint32_t)&_SPIFFS_end - 0x40200000) / SPI_FLASH_SEC_SIZE
-#define CFG_LOCATION        SPIFFS_END - 2
+
+// Version 2.x config
+#define SPIFFS_CONFIG2      "/config.ini"
+#define CFG_LOCATION2       SPIFFS_END - 2
+
+// Version 3.x config
+#define SPIFFS_CONFIG       "/cfg.ini"
+#define CFG_LOCATION        SPIFFS_END - 4
 
 uint32_t _cfgHash = 0;
 int spiffsflag = 0;
@@ -50,7 +56,7 @@ uint32_t getHash()
   uint8_t *bytes = (uint8_t*)&sysCfg;
 
   for (int i = 0; i < sizeof(SYSCFG); i++) hash += bytes[i]*(i+1);
-  return hash;  
+  return hash;
 }
 
 /*********************************************************************************************\
@@ -109,7 +115,7 @@ void CFG_Load()
       } else {
         addLog_P(LOG_LEVEL_ERROR, PSTR("Config: ERROR - Loading configuration failed"));
       }
-    } else {  
+    } else {
 #endif  // USE_SPIFFS
       struct SYSCFGH {
         unsigned long cfg_holder;
@@ -126,7 +132,59 @@ void CFG_Load()
       addLog(LOG_LEVEL_DEBUG, log);
     }
   }
-  if (sysCfg.cfg_holder != CFG_HOLDER) CFG_Default();
+//  snprintf_P(log, sizeof(log), PSTR("Config: Check 1 for migration (%08X)"), sysCfg.version);
+//  addLog(LOG_LEVEL_NONE, log);
+  if (sysCfg.cfg_holder != CFG_HOLDER) {
+    if ((sysCfg.version < 0x03000000) || (sysCfg.version > 0x73000000)) {
+      CFG_Migrate();  // Config may be present with versions below 3.0.0
+    } else {
+      CFG_Default();
+    }
+  }
+  _cfgHash = getHash();
+}
+
+void CFG_Migrate()
+{
+  char log[LOGSZ];
+
+  if (spiffsPresent()) {
+    if (!spiffsflag) {
+#ifdef USE_SPIFFS
+      File f = SPIFFS.open(SPIFFS_CONFIG2, "r+");
+      if (f) {
+        uint8_t *bytes = (uint8_t*)&sysCfg2;
+        for (int i = 0; i < sizeof(SYSCFG2); i++) bytes[i] = f.read();
+        f.close();
+        snprintf_P(log, sizeof(log), PSTR("Config: Loaded previous configuration from spiffs count %d"), sysCfg2.saveFlag);
+        addLog(LOG_LEVEL_DEBUG, log);
+      } else {
+        addLog_P(LOG_LEVEL_ERROR, PSTR("Config: ERROR - Loading previous configuration failed"));
+      }
+    } else {
+#endif  // USE_SPIFFS
+      struct SYSCFGH {
+        unsigned long cfg_holder;
+        unsigned long saveFlag;
+      } _sysCfgH;
+
+      noInterrupts();
+      spi_flash_read((CFG_LOCATION2) * SPI_FLASH_SEC_SIZE, (uint32*)&sysCfg2, sizeof(SYSCFG2));
+      spi_flash_read((CFG_LOCATION2 + 1) * SPI_FLASH_SEC_SIZE, (uint32*)&_sysCfgH, sizeof(SYSCFGH));
+      if (sysCfg2.saveFlag < _sysCfgH.saveFlag)
+        spi_flash_read((CFG_LOCATION2 + 1) * SPI_FLASH_SEC_SIZE, (uint32*)&sysCfg2, sizeof(SYSCFG2));
+      interrupts();
+      snprintf_P(log, sizeof(log), PSTR("Config: Loaded previous configuration from flash at %X and count %d"), CFG_LOCATION + (sysCfg2.saveFlag &1), sysCfg2.saveFlag);
+      addLog(LOG_LEVEL_DEBUG, log);
+    }
+  }
+//  snprintf_P(log, sizeof(log), PSTR("Config: Check 2 for migration (%08X)"), sysCfg2.version);
+//  addLog(LOG_LEVEL_NONE, log);
+  if ((sysCfg2.version > 0x01000000) && (sysCfg2.version < 0x03000000)) {
+    CFG_Migrate_Part2();  // Config is present between version 1.0.0 and 3.0.0
+  } else {
+    CFG_Default();
+  }
   _cfgHash = getHash();
 }
 
@@ -178,7 +236,7 @@ void CFG_Dump()
       } else {
         addLog_P(LOG_LEVEL_ERROR, PSTR("Config: ERROR - Loading buffer failed"));
       }
-    } else {  
+    } else {
 #endif  // USE_SPIFFS
       noInterrupts();
       spi_flash_read((CFG_LOCATION + (sysCfg.saveFlag &1)) * SPI_FLASH_SEC_SIZE, (uint32*)&buffer, sizeof(buffer));
@@ -233,7 +291,7 @@ void initSpiffs()
         }
       }
     }
-  }  
+  }
 }
 #endif  // USE_SPIFFS
 
@@ -369,10 +427,10 @@ void WIFI_begin(uint8_t flag)
   case 2:  // Toggle
     sysCfg.sta_active ^= 1;
   }        // 3: Current AP
-  if (strlen(sysCfg.sta_ssid2) == 0) sysCfg.sta_active = 0;
-  WiFi.begin((sysCfg.sta_active) ? sysCfg.sta_ssid2 : sysCfg.sta_ssid1, (sysCfg.sta_active) ? sysCfg.sta_pwd2 : sysCfg.sta_pwd1);
+  if (strlen(sysCfg.sta_ssid[1]) == 0) sysCfg.sta_active = 0;
+  WiFi.begin(sysCfg.sta_ssid[sysCfg.sta_active], sysCfg.sta_pwd[sysCfg.sta_active]);
   snprintf_P(log, sizeof(log), PSTR("Wifi: Connecting to AP%d %s (%s) in mode 11%c as %s..."),
-    sysCfg.sta_active +1, (sysCfg.sta_active) ? sysCfg.sta_ssid2 : sysCfg.sta_ssid1, (sysCfg.sta_active) ? sysCfg.sta_pwd2 : sysCfg.sta_pwd1, PhyMode[WiFi.getPhyMode() & 0x3], Hostname);
+    sysCfg.sta_active +1, sysCfg.sta_ssid[sysCfg.sta_active], sysCfg.sta_pwd[sysCfg.sta_active], PhyMode[WiFi.getPhyMode() & 0x3], Hostname);
   addLog(LOG_LEVEL_INFO, log);
 }
 
@@ -380,7 +438,7 @@ void WIFI_check_ip()
 {
   if ((WiFi.status() == WL_CONNECTED) && (static_cast<uint32_t>(WiFi.localIP()) != 0)) {
     _wificounter = WIFI_CHECKSEC;
-    _wifiretry = WIFI_RETRY;    
+    _wifiretry = WIFI_RETRY;
     addLog_P((_wifistatus != WL_CONNECTED) ? LOG_LEVEL_INFO : LOG_LEVEL_DEBUG_MORE, PSTR("Wifi: Connected"));
     _wifistatus = WL_CONNECTED;
   } else {
@@ -389,7 +447,7 @@ void WIFI_check_ip()
       case WL_CONNECTED:
         addLog_P(LOG_LEVEL_INFO, PSTR("Wifi: Connect failed as no IP address received"));
         _wifistatus = 0;
-        _wifiretry = WIFI_RETRY;    
+        _wifiretry = WIFI_RETRY;
         break;
       case WL_NO_SSID_AVAIL:
         addLog_P(LOG_LEVEL_INFO, PSTR("Wifi: Connect failed as AP cannot be reached"));
@@ -422,7 +480,7 @@ void WIFI_check_ip()
 void WIFI_Check(uint8_t param)
 {
   char log[LOGSZ];
-  
+
   _wificounter--;
   switch (param) {
   case WIFI_SMARTCONFIG:
@@ -438,16 +496,16 @@ void WIFI_Check(uint8_t param)
         if ((_wificonfigflag == WIFI_SMARTCONFIG) && WiFi.smartConfigDone()) _wifiConfigCounter = 0;
         if ((_wificonfigflag == WIFI_WPSCONFIG) && WIFI_WPSConfigDone()) _wifiConfigCounter = 0;
         if (!_wifiConfigCounter) {
-          if (strlen(WiFi.SSID().c_str())) strlcpy(sysCfg.sta_ssid1, WiFi.SSID().c_str(), sizeof(sysCfg.sta_ssid1));
-          if (strlen(WiFi.psk().c_str())) strlcpy(sysCfg.sta_pwd1, WiFi.psk().c_str(), sizeof(sysCfg.sta_pwd1));
+          if (strlen(WiFi.SSID().c_str())) strlcpy(sysCfg.sta_ssid[0], WiFi.SSID().c_str(), sizeof(sysCfg.sta_ssid[0]));
+          if (strlen(WiFi.psk().c_str())) strlcpy(sysCfg.sta_pwd[0], WiFi.psk().c_str(), sizeof(sysCfg.sta_pwd[0]));
           sysCfg.sta_active = 0;
-          snprintf_P(log, sizeof(log), PSTR("Wificonfig: SSID1 %s and Password1 %s"), sysCfg.sta_ssid1, sysCfg.sta_pwd1);
+          snprintf_P(log, sizeof(log), PSTR("Wificonfig: SSID1 %s and Password1 %s"), sysCfg.sta_ssid[0], sysCfg.sta_pwd[0]);
           addLog(LOG_LEVEL_INFO, log);
         }
       }
       if (!_wifiConfigCounter) {
         if (_wificonfigflag == WIFI_SMARTCONFIG) WiFi.stopSmartConfig();
-        restartflag = 2;     
+        restartflag = 2;
       }
     } else {
       if (_wificounter <= 0) {
@@ -509,14 +567,14 @@ const char WEMO_MSEARCH[] PROGMEM =
   "X-User-Agent: redsonic\r\n"
   "\r\n";
 
-String wemo_serial() 
+String wemo_serial()
 {
   char serial[15];
   snprintf_P(serial, sizeof(serial), PSTR("201612K%07d"), ESP.getChipId());
   return String(serial);
 }
 
-String wemo_UUID() 
+String wemo_UUID()
 {
   char uuid[26];
   snprintf_P(uuid, sizeof(uuid), PSTR("Socket-1_0-%s"), wemo_serial().c_str());
@@ -532,7 +590,7 @@ void wemo_respondToMSearch()
     response.replace("{r1}", WiFi.localIP().toString());
     response.replace("{r2}", wemo_UUID());
     portUDP.write(response.c_str());
-    portUDP.endPacket();                    
+    portUDP.endPacket();
     snprintf_P(message, sizeof(message), PSTR("Response sent"));
   } else {
     snprintf_P(message, sizeof(message), PSTR("Failed to send response"));
@@ -544,7 +602,7 @@ void wemo_respondToMSearch()
 
 void pollUDP()
 {
-  if (udpConnected) {   
+  if (udpConnected) {
     if (portUDP.parsePacket()) {
       int len = portUDP.read(packetBuffer, WEMO_BUFFER_SIZE -1);
       if (len > 0) packetBuffer[len] = 0;
@@ -554,7 +612,7 @@ void pollUDP()
         if (request.indexOf("urn:Belkin:device:**") > 0) {
           wemo_respondToMSearch();
         }
-      }        
+      }
     }
   }
 }
@@ -562,7 +620,7 @@ void pollUDP()
 boolean UDP_Connect()
 {
   boolean state = false;
-  
+
   if (portUDP.beginMulticast(WiFi.localIP(), ipMulticast, portMulticast)) {
     addLog_P(LOG_LEVEL_INFO, PSTR("UPnP: Multicast (re)joined"));
     state = true;
@@ -653,8 +711,8 @@ void i2c_scan(char *devs, unsigned int devs_len)
 {
   byte error, address, any = 0;
   char tstr[10];
-  
-  snprintf_P(devs, devs_len, PSTR("Device(s) found at"));
+
+  snprintf_P(devs, devs_len, PSTR("{\"I2Cscan\":\"Device(s) found at"));
   for (address = 1; address <= 127; address++) {
     Wire.beginTransmission(address);
     error = Wire.endTransmission();
@@ -663,15 +721,19 @@ void i2c_scan(char *devs, unsigned int devs_len)
       strncat(devs, tstr, devs_len);
       any = 1;
     }
-    else if (error == 4) snprintf_P(devs, devs_len, PSTR("Unknow error at 0x%2x"), address);
+    else if (error == 4) snprintf_P(devs, devs_len, PSTR("{\"I2Cscan\":\"Unknow error at 0x%2x\"}"), address);
   }
-  if (!any) snprintf_P(devs, devs_len, PSTR("No devices found"));
+  if (any) {
+    strncat(devs, "\"}", devs_len);
+  } else {
+    snprintf_P(devs, devs_len, PSTR("{\"I2Cscan\":\"No devices found\"}"));
+  }
 }
 #endif //SEND_TELEMETRY_I2C
 
 /*********************************************************************************************\
  * Real Time Clock
- * 
+ *
  * Sources: Time by Michael Margolis and Paul Stoffregen (https://github.com/PaulStoffregen/Time)
  *          Timezone by Jack Christensen (https://github.com/JChristensen/Timezone)
 \*********************************************************************************************/
@@ -711,15 +773,15 @@ void breakTime(uint32_t timeInput, TIME_T &tm)
   time /= 60;                // now it is hours
   tm.Hour = time % 24;
   time /= 24;                // now it is days
-  tm.Wday = ((time + 4) % 7) + 1;  // Sunday is day 1 
-  
-  year = 0;  
+  tm.Wday = ((time + 4) % 7) + 1;  // Sunday is day 1
+
+  year = 0;
   days = 0;
   while((unsigned)(days += (LEAP_YEAR(year) ? 366 : 365)) <= time) {
     year++;
   }
-  tm.Year = year;            // year is offset from 1970 
-  
+  tm.Year = year;            // year is offset from 1970
+
   days -= LEAP_YEAR(year) ? 366 : 365;
   time -= days;              // now it is days in this year, starting at 0
   tm.DayOfYear = time;
@@ -737,7 +799,7 @@ void breakTime(uint32_t timeInput, TIME_T &tm)
     } else {
       monthLength = monthDays[month];
     }
-    
+
     if (time >= monthLength) {
       time -= monthLength;
     } else {
@@ -745,16 +807,16 @@ void breakTime(uint32_t timeInput, TIME_T &tm)
     }
   }
   strlcpy(tm.MonthName, monthNames + (month *3), 4);
-  tm.Month = month + 1;      // jan is month 1  
+  tm.Month = month + 1;      // jan is month 1
   tm.Day = time + 1;         // day of month
   tm.Valid = (timeInput > 1451602800);  // 2016-01-01
 }
 
 uint32_t makeTime(TIME_T &tm)
-{   
-// assemble time elements into time_t 
+{
+// assemble time elements into time_t
 // note year argument is offset from 1970
-  
+
   int i;
   uint32_t seconds;
 
@@ -765,10 +827,10 @@ uint32_t makeTime(TIME_T &tm)
       seconds +=  SECS_PER_DAY;   // add extra days for leap years
     }
   }
-  
+
   // add days for this year, months start from 1
   for (i = 1; i < tm.Month; i++) {
-    if ((i == 2) && LEAP_YEAR(tm.Year)) { 
+    if ((i == 2) && LEAP_YEAR(tm.Year)) {
       seconds += SECS_PER_DAY * 29;
     } else {
       seconds += SECS_PER_DAY * monthDays[i-1];  // monthDay array starts from 0
@@ -778,7 +840,7 @@ uint32_t makeTime(TIME_T &tm)
   seconds+= tm.Hour * SECS_PER_HOUR;
   seconds+= tm.Minute * SECS_PER_MIN;
   seconds+= tm.Second;
-  return seconds; 
+  return seconds;
 }
 
 uint32_t toTime_t(TimeChangeRule r, int yr)
@@ -804,7 +866,7 @@ uint32_t toTime_t(TimeChangeRule r, int yr)
     tm.Month = m;
     tm.Year = yr - 1970;
     t = makeTime(tm);        // First day of the month, or first day of next month for "Last" rules
-    breakTime(t, tm); 
+    breakTime(t, tm);
     t += (7 * (w - 1) + (r.dow - tm.Wday + 7) % 7) * SECS_PER_DAY;
     if (r.week == 0) t -= 7 * SECS_PER_DAY;    //back up a week if this is a "Last" rule
     return t;
@@ -925,11 +987,11 @@ void syslog(const char *message)
 void addLog(byte loglevel, const char *line)
 {
   char mxtime[9];
-  
+
   snprintf_P(mxtime, sizeof(mxtime), PSTR("%02d:%02d:%02d"), rtcTime.Hour, rtcTime.Minute, rtcTime.Second);
-  
+
 #ifdef DEBUG_ESP_PORT
-  DEBUG_ESP_PORT.printf("%s %s\n", mxtime, line);  
+  DEBUG_ESP_PORT.printf("%s %s\n", mxtime, line);
 #endif  // DEBUG_ESP_PORT
   if (loglevel <= sysCfg.seriallog_level) Serial.printf("%s %s\n", mxtime, line);
 #ifdef USE_WEBSERVER
@@ -945,12 +1007,11 @@ void addLog(byte loglevel, const char *line)
 void addLog_P(byte loglevel, const char *formatP)
 {
   char mess[MESSZ];
-  
+
   snprintf_P(mess, sizeof(mess), formatP);
   addLog(loglevel, mess);
 }
 
 /*********************************************************************************************\
- * 
+ *
 \*********************************************************************************************/
-
