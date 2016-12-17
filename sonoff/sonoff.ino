@@ -10,7 +10,7 @@
  * ====================================================
 */
 
-#define VERSION                0x03000400   // 3.0.3
+#define VERSION                0x03000600   // 3.0.6
 
 #define SONOFF                 1            // Sonoff, Sonoff SV, Sonoff Dual, Sonoff TH 10A/16A, S20 Smart Socket, 4 Channel
 #define SONOFF_POW             9            // Sonoff Pow
@@ -27,9 +27,10 @@ enum log_t   {LOG_LEVEL_NONE, LOG_LEVEL_ERROR, LOG_LEVEL_INFO, LOG_LEVEL_DEBUG, 
 enum week_t  {Last, First, Second, Third, Fourth};
 enum dow_t   {Sun=1, Mon, Tue, Wed, Thu, Fri, Sat};
 enum month_t {Jan=1, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec};
-enum wifi_t  {WIFI_RESTART, WIFI_SMARTCONFIG, WIFI_MANAGER, WIFI_WPSCONFIG};
+enum wifi_t  {WIFI_RESTART, WIFI_SMARTCONFIG, WIFI_MANAGER, WIFI_WPSCONFIG, WIFI_RETRY, MAX_WIFI_OPTION};
 enum msgf_t  {LEGACY, JSON, MAX_FORMAT};
 enum swtch_t {TOGGLE, FOLLOW, FOLLOW_INV, PUSHBUTTON, PUSHBUTTON_INV, MAX_SWITCH_OPTION};
+enum led_t   {LED_OFF, LED_POWER, LED_MQTTSUB, LED_POWER_MQTTSUB, LED_MQTTPUB, LED_POWER_MQTTPUB, LED_MQTT, LED_POWER_MQTT, MAX_LED_OPTION};
 
 #include "user_config.h"
 
@@ -143,7 +144,7 @@ const char commands[MAX_BUTTON_COMMANDS][14] PROGMEM = {
   {"restart 1"},      // Press button six times
   {"upgrade 1"}};     // Press button seven times
 
-const char wificfg[4][12] PROGMEM = { "Restart", "Smartconfig", "Wifimanager", "WPSconfig" };
+const char wificfg[5][12] PROGMEM = { "Restart", "Smartconfig", "Wifimanager", "WPSconfig", "Retry" };
 
 struct SYSCFG2 {
   unsigned long cfg_holder;
@@ -286,6 +287,8 @@ struct SYSCFG {
   uint16_t      hlw_mkwh;   // MaxEnergy
   uint16_t      hlw_mkwhs;  // MaxEnergyStart
 
+  uint16_t      pulsetime;
+
 } sysCfg;
 
 struct TIME_T {
@@ -337,6 +340,7 @@ String Log[MAX_LOG_LINES];            // Web log buffer
 byte logidx = 0;                      // Index in Web log buffer
 byte Maxdevice = MAX_DEVICE;          // Max number of devices supported
 int status_update_timer = 0;          // Refresh initial status
+uint16_t pulse_timer = 0;             // Power off timer
 
 #ifdef USE_MQTT_TLS
   WiFiClientSecure espClient;         // Wifi Secure Client
@@ -350,7 +354,7 @@ uint8_t power;                        // Current copy of sysCfg.power
 byte syslog_level;                    // Current copy of sysCfg.syslog_level
 uint16_t syslog_timer = 0;            // Timer to re-enable syslog_level
 
-int blinks = 1;                       // Number of LED blinks
+int blinks = 201;                     // Number of LED blinks
 uint8_t blinkstate = 0;               // LED state
 
 uint8_t lastbutton = NOT_PRESSED;     // Last button state
@@ -443,6 +447,7 @@ void CFG_Default()
   sysCfg.tele_period = TELE_PERIOD;
 
   sysCfg.power = APP_POWER;
+  sysCfg.pulsetime = APP_PULSETIME;
   sysCfg.ledstate = APP_LEDSTATE;
   sysCfg.switchmode = SWITCH_MODE;
 
@@ -531,6 +536,7 @@ void CFG_Migrate_Part2()
   if ((sysCfg.tele_period > 0) && (sysCfg.tele_period < 10)) sysCfg.tele_period = 10;   // Do not allow periods < 10 seconds
 
   sysCfg.power = sysCfg2.power;
+  sysCfg.pulsetime = APP_PULSETIME;
   sysCfg.ledstate = sysCfg2.ledstate;
   sysCfg.switchmode = sysCfg2.switchmode;
 
@@ -573,6 +579,9 @@ void CFG_Migrate_Part2()
 void CFG_Delta()
 {
   if (sysCfg.version != VERSION) {      // Fix version dependent changes
+    if (sysCfg.version < 0x03000600) {  // 3.0.6 - Add parameter
+      sysCfg.pulsetime = APP_PULSETIME;
+    }
 
     sysCfg.version = VERSION;
   }
@@ -588,7 +597,11 @@ void getClient(char* output, const char* input, byte size)
   if (strstr(input, "%")) {
     strlcpy(output, input, size);
     token = strtok(output, "%");
-    token = strtok(NULL, "");
+    if (strstr(input, "%") == input) {
+      output[0] = '\0';
+    } else {
+      token = strtok(NULL, "");
+    }
     if (token != NULL) {
       digits = atoi(token);
       if (digits) {
@@ -707,7 +720,7 @@ void mqtt_publish(const char* topic, const char* data, boolean retained)
     snprintf_P(log, sizeof(log), PSTR("RSLT: %s = %s"), topic, data);
   }
   addLog(LOG_LEVEL_INFO, log);
-  blinks++;
+  if (sysCfg.ledstate &0x04) blinks++;
 }
 
 void mqtt_publish(const char* topic, const char* data)
@@ -959,6 +972,7 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
   if (type != NULL) {
     snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/RESULT"), PUB_PREFIX, sysCfg.mqtt_topic);
     snprintf_P(svalue, sizeof(svalue), PSTR("{\"Command\":\"Error\"}"));
+    if (sysCfg.ledstate &0x02) blinks++;
 
     if (!strcmp(dataBufUc,"?")) data_len = 0;
     int16_t payload = atoi(dataBuf);
@@ -968,7 +982,7 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
 
     if ((!strcmp(type,"POWER") || !strcmp(type,"LIGHT")) && (index <= Maxdevice)) {
       snprintf_P(sysCfg.mqtt_subtopic, sizeof(sysCfg.mqtt_subtopic), PSTR("%s"), type);
-      if ((data_len == 0) || (payload > 2)) payload = 3;
+      if ((data_len == 0) || (payload > 2)) payload = 9;
       do_cmnd_power(index, payload);
       return;
     }
@@ -1084,6 +1098,13 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
         }
       }
     }
+    else if (!strcmp(type,"PULSETIME")) {
+      if ((data_len > 0) && (payload >= 0) && (payload <= 3600)) {
+        sysCfg.pulsetime = payload;
+        pulse_timer = 0;
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"PulseTime\":%d}"), sysCfg.pulsetime);
+    }
     else if (!strcmp(type,"SAVEDATA")) {
       if ((data_len > 0) && (payload >= 0) && (payload <= 3600)) {
         sysCfg.savedata = payload;
@@ -1194,7 +1215,7 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
       snprintf_P(svalue, sizeof(svalue), PSTR("{\"Hostname\":\"%s\"}"), sysCfg.hostname);
     }
     else if (!strcmp(type,"WIFICONFIG") || !strcmp(type,"SMARTCONFIG")) {
-      if ((data_len > 0) && (payload >= WIFI_RESTART) && (payload <= WIFI_WPSCONFIG)) {
+      if ((data_len > 0) && (payload >= WIFI_RESTART) && (payload < MAX_WIFI_OPTION)) {
         sysCfg.sta_config = payload;
         wificheckflag = sysCfg.sta_config;
         snprintf_P(stemp1, sizeof(stemp1), wificfg[sysCfg.sta_config]);
@@ -1420,10 +1441,11 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
       snprintf_P(svalue, sizeof(svalue), PSTR("{\"Timezone\":\"%d%s\"}"), sysCfg.timezone, (sysCfg.mqtt_units) ? " Hr" : "");
     }
     else if (!strcmp(type,"LEDSTATE")) {
-      if ((data_len > 0) && (payload >= 0) && (payload <= 1)) {
+      if ((data_len > 0) && (payload >= 0) && (payload < MAX_LED_OPTION)) {
         sysCfg.ledstate = payload;
+        if (!sysCfg.ledstate) digitalWrite(LED_PIN, LED_INVERTED);
       }
-      snprintf_P(svalue, sizeof(svalue), PSTR("{\"LedState\":\"%s\"}"), (sysCfg.ledstate) ? MQTT_STATUS_ON : MQTT_STATUS_OFF);
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"LedState\":%d}"), sysCfg.ledstate);
     }
     else if (!strcmp(type,"CFGDUMP")) {
       CFG_Dump();
@@ -1548,7 +1570,7 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     }
   }
   if (type == NULL) {
-    blinks = 1;
+    blinks = 201;
     snprintf_P(svalue, sizeof(svalue), PSTR("{\"Commands1\":\"Status, SaveData, SaveSate, Upgrade, Otaurl, Restart, Reset, WifiConfig, Seriallog, Syslog, LogHost, LogPort, SSId1, SSId2, Password1, Password2, AP%s\"}"), (!grpflg) ? ", Hostname" : "");
     if (sysCfg.message_format != JSON) json2legacy(stopic, svalue);
     mqtt_publish(stopic, svalue);
@@ -1557,7 +1579,7 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     if (sysCfg.message_format != JSON) json2legacy(stopic, svalue);
     mqtt_publish(stopic, svalue);
 
-    snprintf_P(svalue, sizeof(svalue), PSTR("{\"Commands3\":\"%s"), (sysCfg.model == SONOFF) ? "Power, Light" : "Power1, Power2, Light1 Light2");
+    snprintf_P(svalue, sizeof(svalue), PSTR("{\"Commands3\":\"%s, PulseTime"), (sysCfg.model == SONOFF) ? "Power, Light" : "Power1, Power2, Light1 Light2");
 #ifdef USE_WEBSERVER
     snprintf_P(svalue, sizeof(svalue), PSTR("%s, Weblog, Webserver"), svalue);
 #endif
@@ -1622,9 +1644,9 @@ void do_cmnd_power(byte device, byte state)
 {
 // device  = Relay number 1 and up
 // state 0 = Relay Off
-// state 1 = Relay on
+// state 1 = Relay on (turn off after sysCfg.pulsetime * 100 mSec if enabled)
 // state 2 = Toggle relay
-// state 3 = Show power state
+// state 9 = Show power state
 
   if ((device < 1) || (device > Maxdevice)) device = 1;
   byte mask = 0x01 << (device -1);
@@ -1644,6 +1666,7 @@ void do_cmnd_power(byte device, byte state)
     if (domoticz_update_flag) mqtt_publishDomoticzPowerState(device);
     domoticz_update_flag = 1;
 #endif  // USE_DOMOTICZ
+    if (device == 1) pulse_timer = (power & mask) ? sysCfg.pulsetime : 0; 
   }
   mqtt_publishPowerState(device);
 }
@@ -2161,6 +2184,11 @@ void stateloop()
     every_second();
   }
 
+  if (pulse_timer) {
+    pulse_timer--;
+    if (!pulse_timer) do_cmnd_power(1, 0);
+  }
+
   if ((sysCfg.model >= SONOFF_DUAL) && (sysCfg.model <= CHANNEL_4)) {
     if (ButtonCode) {
       snprintf_P(log, sizeof(log), PSTR("APP: Button code %04X"), ButtonCode);
@@ -2178,7 +2206,7 @@ void stateloop()
     multipress = (multiwindow) ? multipress +1 : 1;
     snprintf_P(log, sizeof(log), PSTR("APP: Multipress %d"), multipress);
     addLog(LOG_LEVEL_DEBUG, log);
-    blinks = 1;
+    blinks = 201;
     multiwindow = STATES /2;         // 1/2 second multi press window
   }
   lastbutton = button;
@@ -2269,10 +2297,15 @@ void stateloop()
       } else {
         blinkstate ^= 1;  // Blink
       }
-      digitalWrite(LED_PIN, (LED_INVERTED) ? !blinkstate : blinkstate);
-      if (!blinkstate) blinks--;
+      if ((sysCfg.ledstate &0x06) || (blinks > 200) || (blinkstate)) {
+        digitalWrite(LED_PIN, (LED_INVERTED) ? !blinkstate : blinkstate);
+      }
+      if (!blinkstate) {
+        blinks--;
+        if (blinks == 200) blinks = 0;
+      }
     } else {
-      if (sysCfg.ledstate) {
+      if (sysCfg.ledstate &0x01) {
         digitalWrite(LED_PIN, (LED_INVERTED) ? !power : power);
       }
     }
@@ -2304,7 +2337,9 @@ void stateloop()
     if (savedatacounter) {
       savedatacounter--;
       if (savedatacounter <= 0) {
-        if (sysCfg.savestate) sysCfg.power = power;
+        if (sysCfg.savestate) {
+          if (!(sysCfg.pulsetime && ((sysCfg.power &0xFE) == (power &0xFE)))) sysCfg.power = power;
+        }
         CFG_Save();
         savedatacounter = sysCfg.savedata;
       }
