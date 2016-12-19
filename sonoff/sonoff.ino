@@ -10,7 +10,7 @@
  * ====================================================
 */
 
-#define VERSION                0x03000600   // 3.0.6
+#define VERSION                0x03000900   // 3.0.9
 
 #define SONOFF                 1            // Sonoff, Sonoff SV, Sonoff Dual, Sonoff TH 10A/16A, S20 Smart Socket, 4 Channel
 #define SONOFF_POW             9            // Sonoff Pow
@@ -33,6 +33,7 @@ enum swtch_t {TOGGLE, FOLLOW, FOLLOW_INV, PUSHBUTTON, PUSHBUTTON_INV, MAX_SWITCH
 enum led_t   {LED_OFF, LED_POWER, LED_MQTTSUB, LED_POWER_MQTTSUB, LED_MQTTPUB, LED_POWER_MQTTPUB, LED_MQTT, LED_POWER_MQTT, MAX_LED_OPTION};
 
 #include "user_config.h"
+#include "user_config_override.h"
 
 /*********************************************************************************************\
  * Enable feature by removing leading // or disable feature by adding leading //
@@ -1993,14 +1994,14 @@ void every_second()
       }
 
 #ifdef SEND_TELEMETRY_DS18B20
-      if (dsb_readTemp(t)) {                 // Check if read failed
+      if (dsb_readTemp(TEMP_CONVERSION, t)) {                 // Check if read failed
         dtostrf(t, 1, TEMP_RESOLUTION &3, stemp1);
         if (sysCfg.message_format == JSON) {
           snprintf_P(svalue, sizeof(svalue), PSTR("%s, \"DS18B20\":{\"Temperature\":\"%s\"}"), svalue, stemp1);
           djson = 1;
         } else {
           snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/DS18B20/TEMPERATURE"), PUB_PREFIX2, sysCfg.mqtt_topic);
-          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? " C" : "");
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? (TEMP_CONVERSION) ? " F" : " C" : "");
           mqtt_publish(stopic, svalue);
         }
       }
@@ -2009,15 +2010,15 @@ void every_second()
 #ifdef SEND_TELEMETRY_DS18x20
       byte dsxflg = 0;
       for (i = 0; i < ds18x20_sensors(); i++) {
-        if (ds18x20_read(i,t)) {           // Check if read failed
-          if (!dsxflg) {
-            snprintf_P(svalue, sizeof(svalue), PSTR("%s, \"DS18x20\":{"), svalue);
-            djson = 1;
-            strcpy(stemp1, "");
-            dsxflg = 1;
-          }
+        if (ds18x20_read(i, TEMP_CONVERSION, t)) {           // Check if read failed
           dtostrf(t, 1, TEMP_RESOLUTION &3, stemp2);
           if (sysCfg.message_format == JSON) {
+            if (!dsxflg) {
+              snprintf_P(svalue, sizeof(svalue), PSTR("%s, \"DS18x20\":{"), svalue);
+              djson = 1;
+              stemp1[0] = '\0';
+              dsxflg = 1;
+            }
             snprintf_P(svalue, sizeof(svalue), PSTR("%s%s\"DS%d\":{\"Type\":\"%s\", \"Address\":\"%s\", \"Temperature\":\"%s\"}"),
               svalue, stemp1, i +1, ds18x20_type(i).c_str(), ds18x20_address(i).c_str(), stemp2);
             strcpy(stemp1, ", ");
@@ -2026,7 +2027,7 @@ void every_second()
             snprintf_P(svalue, sizeof(svalue), PSTR("%s"), ds18x20_address(i).c_str());
             mqtt_publish(stopic, svalue);
             snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/%s/%d/TEMPERATURE"), PUB_PREFIX2, sysCfg.mqtt_topic, ds18x20_type(i).c_str(), i +1);
-            snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp2, (sysCfg.mqtt_units) ? " C" : "");
+            snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp2, (sysCfg.mqtt_units) ? (TEMP_CONVERSION) ? " F" : " C" : "");
             mqtt_publish(stopic, svalue);
           }
         }
@@ -2035,7 +2036,7 @@ void every_second()
 #endif  // SEND_TELEMETRY_DS18x20
 
 #if defined(SEND_TELEMETRY_DHT) || defined(SEND_TELEMETRY_DHT2)
-      if (dht_readTempHum(false, t, h)) {     // Read temperature as Celsius (the default)
+      if (dht_readTempHum(TEMP_CONVERSION, t, h)) {     // Read temperature
         dtostrf(t, 1, TEMP_RESOLUTION &3, stemp1);
         dtostrf(h, 1, HUMIDITY_RESOLUTION &3, stemp2);
         if (sysCfg.message_format == JSON) {
@@ -2043,7 +2044,7 @@ void every_second()
           djson = 1;
         } else {
           snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/DHT/TEMPERATURE"), PUB_PREFIX2, sysCfg.mqtt_topic);
-          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? " C" : "");
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? (TEMP_CONVERSION) ? " F" : " C" : "");
           mqtt_publish(stopic, svalue);
           snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/DHT/HUMIDITY"), PUB_PREFIX2, sysCfg.mqtt_topic);
           snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp2, (sysCfg.mqtt_units) ? " %" : "");
@@ -2055,7 +2056,7 @@ void every_second()
 #ifdef SEND_TELEMETRY_I2C
       if(htu_found())
       {
-        t = htu21_readTemperature();
+        t = htu21_readTemperature(TEMP_CONVERSION);
         h = htu21_readHumidity();
         h = htu21_compensatedHumidity(h, t);
         dtostrf(t, 1, TEMP_RESOLUTION &3, stemp1);
@@ -2066,7 +2067,7 @@ void every_second()
         } else
         {
           snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/%s/TEMPERATURE"), PUB_PREFIX2, sysCfg.mqtt_topic, htu_type());
-          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? " C" : "");
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? (TEMP_CONVERSION) ? " F" : " C" : "");
           mqtt_publish(stopic, svalue);
           snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/%s/HUMIDITY"), PUB_PREFIX2, sysCfg.mqtt_topic, htu_type());
           snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp2, (sysCfg.mqtt_units) ? " %" : "");
@@ -2075,7 +2076,7 @@ void every_second()
       }
       if(bmp_found())
       {
-        double t_bmp = bmp_readTemperature();
+        double t_bmp = bmp_readTemperature(TEMP_CONVERSION);
         double p_bmp = bmp_readPressure();
         double h_bmp = bmp_readHumidity();
         dtostrf(t_bmp, 1, TEMP_RESOLUTION &3, stemp1);
@@ -2092,7 +2093,7 @@ void every_second()
           djson = 1;
         } else {
           snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/%s/TEMPERATURE"), PUB_PREFIX2, sysCfg.mqtt_topic, bmp_type());
-          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? " C" : "");
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp1, (sysCfg.mqtt_units) ? (TEMP_CONVERSION) ? " F" : " C" : "");
           mqtt_publish(stopic, svalue);
           if (!strcmp(bmp_type(),"BME280")) {
             snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/%s/HUMIDITY"), PUB_PREFIX2, sysCfg.mqtt_topic, bmp_type());
@@ -2100,7 +2101,7 @@ void every_second()
             mqtt_publish(stopic, svalue);
           }
           snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/%s/PRESSURE"), PUB_PREFIX2, sysCfg.mqtt_topic, bmp_type());
-          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp2, (sysCfg.mqtt_units) ? " mbar" : "");
+          snprintf_P(svalue, sizeof(svalue), PSTR("%s%s"), stemp2, (sysCfg.mqtt_units) ? " hPa" : "");
           mqtt_publish(stopic, svalue);
         }
       }
