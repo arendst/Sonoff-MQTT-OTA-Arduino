@@ -336,6 +336,10 @@ byte logidx = 0;                      // Index in Web log buffer
 byte Maxdevice = MAX_DEVICE;          // Max number of devices supported
 int status_update_timer = 0;          // Refresh initial status
 uint16_t pulse_timer = 0;             // Power off timer
+uint16_t blink_timer = 0;             // Blink timer
+uint16_t blink_oneblink_timer = 0;    // Timer for one blink
+uint8_t blink_preserve_powerstate;    // Powerstate before blinking started
+uint8_t blink_state;                  // Blink toggler
 
 #ifdef USE_MQTT_TLS
   WiFiClientSecure espClient;         // Wifi Secure Client
@@ -1015,10 +1019,12 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     if (!strcmp(dataBufUc,"OFF") || !strcmp(dataBufUc,"STOP")) payload = 0;
     if (!strcmp(dataBufUc,"ON") || !strcmp(dataBufUc,"START") || !strcmp(dataBufUc,"USER")) payload = 1;
     if (!strcmp(dataBufUc,"TOGGLE") || !strcmp(dataBufUc,"ADMIN")) payload = 2;
+    if (!strcmp(dataBufUc,"BLINK")) payload = 3;
+    if (!strcmp(dataBufUc,"NOBLINK")) payload = 4;
 
     if ((!strcmp(type,"POWER") || !strcmp(type,"LIGHT")) && (index <= Maxdevice)) {
       snprintf_P(sysCfg.mqtt_subtopic, sizeof(sysCfg.mqtt_subtopic), PSTR("%s"), type);
-      if ((data_len == 0) || (payload > 2)) payload = 9;
+      if ((data_len == 0) || (payload > 4)) payload = 9;
       do_cmnd_power(index, payload);
       return;
     }
@@ -1690,11 +1696,14 @@ void do_cmnd_power(byte device, byte state)
 // state 0 = Relay Off
 // state 1 = Relay on (turn off after sysCfg.pulsetime * 100 mSec if enabled)
 // state 2 = Toggle relay
+// state 3 = Blink
+// state 4 = Blink off
 // state 9 = Show power state
 
   if ((device < 1) || (device > Maxdevice)) device = 1;
   byte mask = 0x01 << (device -1);
   if (state <= 2) {
+    blink_timer = 0;
     switch (state) {
     case 0: { // Off
       power &= (0xFF ^ mask);
@@ -1711,6 +1720,25 @@ void do_cmnd_power(byte device, byte state)
     domoticz_update_flag = 1;
 #endif  // USE_DOMOTICZ
     if (device == 1) pulse_timer = (power & mask) ? sysCfg.pulsetime : 0; 
+  }
+  else if (state == 3)
+  {
+    if (device == 1) {
+      blink_preserve_powerstate=power;
+      blink_timer = 3000;  // should be from a config file
+      blink_oneblink_timer = 1;
+      blink_state=!(power & mask);
+      //mqtt_publish(); // Tell host we're blinking?
+    }
+    return;
+  }
+  else if (state == 4)
+  {
+    if (device == 1) {
+      if (blink_timer) blink_timer = 1;
+      //mqtt_publish(); // Tell host we're done blinking?
+    }
+    return;
   }
   mqtt_publishPowerState(device);
 }
@@ -2236,6 +2264,20 @@ void stateloop()
   if (pulse_timer) {
     pulse_timer--;
     if (!pulse_timer) do_cmnd_power(1, 0);
+  }
+
+  if (blink_timer) {
+    blink_timer--;
+    if (!blink_timer) do_cmnd_power(1, blink_preserve_powerstate & 0x1);
+  }
+
+  if (blink_timer && blink_oneblink_timer) {
+    blink_oneblink_timer--;
+    if (!blink_oneblink_timer) {
+      blink_state=!blink_state;
+      setRelay(blink_state);
+      blink_oneblink_timer = 10; // set from config
+    }
   }
 
   if ((sysCfg.model >= SONOFF_DUAL) && (sysCfg.model <= CHANNEL_4)) {
