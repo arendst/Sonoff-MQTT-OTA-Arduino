@@ -26,7 +26,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifdef USE_POWERMONITOR
 /*********************************************************************************************\
  * HLW8012 - Energy
- * 
+ *
  * Based on Source: Shenzhen Heli Technology Co., Ltd
 \*********************************************************************************************/
 
@@ -34,36 +34,37 @@ POSSIBILITY OF SUCH DAMAGE.
 #define HLW_UREF             2200    // 220.0V
 #define HLW_IREF             4545    // 4.545A
 
-byte hlw_SELflag, hlw_cf1_timer, hlw_seconds, hlw_startup;
+byte hlw_SELflag, hlw_cf_timer, hlw_cf1_timer, hlw_fifth_second, hlw_startup;
 unsigned long hlw_cf_plen, hlw_cf_last;
-unsigned long hlw_cf1_plen, hlw_cf1_last;
-unsigned long hlw_cf1u_plen, hlw_cf1i_plen;
+unsigned long hlw_cf1_plen, hlw_cf1_last, hlw_cf1_ptot, hlw_cf1_pcnt, hlw_cf1u_plen, hlw_cf1i_plen;
 unsigned long hlw_Ecntr, hlw_EDcntr, hlw_kWhtoday;
 uint32_t hlw_lasttime;
+
+unsigned long hlw_cf1u_pcntmax, hlw_cf1i_pcntmax;
 
 Ticker tickerHLW;
 
 void hlw_cf_interrupt() ICACHE_RAM_ATTR;
 void hlw_cf1_interrupt() ICACHE_RAM_ATTR;
 
-void hlw_cf_interrupt()
+void hlw_cf_interrupt()  // Service Power
 {
   hlw_cf_plen = micros() - hlw_cf_last;
   hlw_cf_last = micros();
+  if (hlw_cf_plen > 4000000) hlw_cf_plen = 0;  // Just powered on
+  hlw_cf_timer = 15;  // Support down to 4W which takes about 3 seconds
   hlw_EDcntr++;
   hlw_Ecntr++;
 }
 
-void hlw_cf1_interrupt()
+void hlw_cf1_interrupt()  // Service Voltage and Current
 {
   hlw_cf1_plen = micros() - hlw_cf1_last;
   hlw_cf1_last = micros();
-  if ((hlw_cf1_timer > 2) && (hlw_cf1_timer < 7)) {
-    if (hlw_SELflag) {
-      hlw_cf1i_plen = hlw_cf1_plen;
-    } else {
-      hlw_cf1u_plen = hlw_cf1_plen;
-    }
+  if ((hlw_cf1_timer > 2) && (hlw_cf1_timer < 8)) {  // Allow for 300 mSec set-up time and measure for up to 1 second
+    hlw_cf1_ptot += hlw_cf1_plen;
+    hlw_cf1_pcnt++;
+    if (hlw_cf1_pcnt == 10) hlw_cf1_timer = 8;  // We need up to ten samples within 1 second (low current could take up to 0.3 second)
   }
 }
 
@@ -71,17 +72,15 @@ void hlw_200mS()
 {
   unsigned long hlw_len, hlw_temp;
 
-  hlw_seconds++;
-  if (hlw_seconds == 5) {
-    hlw_seconds = 0;
+  hlw_fifth_second++;
+  if (hlw_fifth_second == 5) {
+    hlw_fifth_second = 0;
 
     if (hlw_EDcntr) {
       hlw_len = 1000000 / hlw_EDcntr;
       hlw_EDcntr = 0;
       hlw_temp = (HLW_PREF * sysCfg.hlw_pcal) / hlw_len;
       hlw_kWhtoday += (hlw_temp * 100) / 36;
-    } else {
-      hlw_cf_plen = 0;
     }
     if (rtc_loctime() == rtc_midnight()) {
       sysCfg.hlw_kWhyesterday = hlw_kWhtoday;
@@ -93,11 +92,31 @@ void hlw_200mS()
     }
   }
 
-  hlw_cf1_timer--;
-  if (!hlw_cf1_timer) {
-    hlw_cf1_timer = 10;
+  if (hlw_cf_timer) {
+    hlw_cf_timer--;
+    if (!hlw_cf_timer) hlw_cf_plen = 0;  // No load for over three seconds
+  }
+  
+  hlw_cf1_timer++;
+  if (hlw_cf1_timer >= 8) {
+    hlw_cf1_timer = 0;
     hlw_SELflag = (hlw_SELflag) ? 0 : 1;
     digitalWrite(HLW_SEL, hlw_SELflag);
+
+    if (hlw_cf1_pcnt) {
+      hlw_cf1_plen = hlw_cf1_ptot / hlw_cf1_pcnt;
+    } else {
+      hlw_cf1_plen = 0;
+    }
+    if (hlw_SELflag) {
+      hlw_cf1u_plen = hlw_cf1_plen;
+      hlw_cf1u_pcntmax = hlw_cf1_pcnt;
+    } else {
+      hlw_cf1i_plen = hlw_cf1_plen;
+      hlw_cf1i_pcntmax = hlw_cf1_pcnt;
+    }
+    hlw_cf1_ptot = 0;
+    hlw_cf1_pcnt = 0;
   }
 }
 
@@ -112,16 +131,16 @@ boolean hlw_readEnergy(byte option, float &ed, uint16_t &e, uint16_t &w, uint16_
   unsigned long hlw_len, hlw_temp, hlw_w, hlw_u, hlw_i;
   int hlw_period, hlw_interval;
 
-//  char log[LOGSZ];
-//  snprintf_P(log, sizeof(log), PSTR("HLW: CF %d, CF1U %d, CF1I %d"), hlw_cf_plen, hlw_cf1u_plen, hlw_cf1i_plen);
-//  addLog(LOG_LEVEL_DEBUG, log);
+//char log[LOGSZ];
+//snprintf_P(log, sizeof(log), PSTR("HLW: CF %d, CF1U %d (%d), CF1I %d (%d)"), hlw_cf_plen, hlw_cf1u_plen, hlw_cf1u_pcntmax, hlw_cf1i_plen, hlw_cf1i_pcntmax);
+//addLog(LOG_LEVEL_DEBUG, log);
 
   if (hlw_kWhtoday) {
     ed = (float)hlw_kWhtoday / 100000000;
   } else {
     ed = 0;
   }
-  
+
   if (option) {
     if (!hlw_lasttime) {
       hlw_period = sysCfg.tele_period;
@@ -146,7 +165,7 @@ boolean hlw_readEnergy(byte option, float &ed, uint16_t &e, uint16_t &w, uint16_
   } else {
     w = 0;
   }
-  if (hlw_cf1u_plen && w) {
+  if (hlw_cf1u_plen && (w || (power &1))) {
     hlw_u = (HLW_UREF * sysCfg.hlw_ucal) / hlw_cf1u_plen;
     u = hlw_u / 10;
   } else {
@@ -168,7 +187,7 @@ boolean hlw_readEnergy(byte option, float &ed, uint16_t &e, uint16_t &w, uint16_
     c = 0;
   }
 
-  return true; 
+  return true;
 }
 
 void hlw_init()
@@ -185,13 +204,15 @@ void hlw_init()
   hlw_cf1_last = 0;
   hlw_cf1u_plen = 0;
   hlw_cf1i_plen = 0;
+  hlw_cf1u_pcntmax = 0;
+  hlw_cf1i_pcntmax = 0;
 
   hlw_Ecntr = 0;
   hlw_EDcntr = 0;
   hlw_kWhtoday = 0;
-  
+
   hlw_SELflag = 0;  // Voltage;
-  
+
   pinMode(HLW_SEL, OUTPUT);
   digitalWrite(HLW_SEL, hlw_SELflag);
   pinMode(HLW_CF1, INPUT_PULLUP);
@@ -201,11 +222,10 @@ void hlw_init()
 
   hlw_startup = 1;
   hlw_lasttime = 0;
-  hlw_seconds = 0;
-  hlw_cf1_timer = 1;
+  hlw_fifth_second = 0;
+  hlw_cf_timer = 0;
+  hlw_cf1_timer = 0;
   tickerHLW.attach_ms(200, hlw_200mS);
 }
-
 #endif  // USE_POWERMONITOR
-
 
