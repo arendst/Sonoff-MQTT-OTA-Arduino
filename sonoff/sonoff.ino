@@ -343,6 +343,7 @@ uint16_t blink_counter = 0;           // Number of blink cycles
 uint8_t blink_power;                  // Blink power state
 uint8_t blink_mask = 0;               // Blink relay active mask
 uint8_t blink_powersave;              // Blink start power save state
+uint8_t mqtt_cmnd_publish = false;    // ignore flag for publish command
 
 #ifdef USE_MQTT_TLS
   WiFiClientSecure espClient;         // Wifi Secure Client
@@ -787,7 +788,9 @@ void mqtt_publishPowerState(byte device)
   snprintf_P(svalue, sizeof(svalue), PSTR("{\"%s%s\":\"%s\"}"),
     sysCfg.mqtt_subtopic, (Maxdevice > 1) ? sdevice : "", (power & (0x01 << (device -1))) ? MQTT_STATUS_ON : MQTT_STATUS_OFF);
   if (sysCfg.message_format == JSON) mqtt_publish(stopic, svalue);
+  snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/RESULT"), SUB_PREFIX, sysCfg.mqtt_topic);
   json2legacy(stopic, svalue);
+  mqtt_cmnd_publish = true;
   mqtt_publish(stopic, svalue, sysCfg.mqtt_power_retain);
 }
 
@@ -924,6 +927,7 @@ void mqtt_reconnect()
     snprintf_P(svalue, sizeof(svalue), PSTR("Online"));
     mqtt_publish(stopic, svalue, true);
     udpConnected = false;
+    mqtt_publishPowerState(1);
     mqtt_connected();
   } else {
     snprintf_P(log, sizeof(log), PSTR("MQTT: CONNECT FAILED, rc %d. Retry in %d seconds"), mqttClient.state(), mqttcounter);
@@ -933,6 +937,10 @@ void mqtt_reconnect()
 
 void mqttDataCb(char* topic, byte* data, unsigned int data_len)
 {
+  if (mqtt_cmnd_publish) {
+    mqtt_cmnd_publish = 0;
+    return;
+  }
   uint16_t i = 0, grpflg = 0, index;
   char topicBuf[TOPSZ], dataBuf[data_len+1], dataBufUc[MESSZ];
   char *str, *p, *mtopic = NULL, *type = NULL, *devc = NULL;
@@ -1478,9 +1486,9 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
         if (!payload) {
           for(i = 1; i <= Maxdevice; i++) {  // Clear MQTT retain in broker
             snprintf_P(stemp2, sizeof(stemp2), PSTR("%d"), i);
-            snprintf_P(stemp1, sizeof(stemp1), PSTR("%s/%s/POWER%s"), PUB_PREFIX, sysCfg.mqtt_topic, (Maxdevice > 1) ? stemp2 : "");
+            snprintf_P(stemp1, sizeof(stemp1), PSTR("%s/%s/POWER%s"), SUB_PREFIX, sysCfg.mqtt_topic, (Maxdevice > 1) ? stemp2 : "");
             mqtt_publish(stemp1, "", sysCfg.mqtt_power_retain);
-            snprintf_P(stemp1, sizeof(stemp1), PSTR("%s/%s/LIGHT%s"), PUB_PREFIX, sysCfg.mqtt_topic, (Maxdevice > 1) ? stemp2 : "");
+            snprintf_P(stemp1, sizeof(stemp1), PSTR("%s/%s/LIGHT%s"), SUB_PREFIX, sysCfg.mqtt_topic, (Maxdevice > 1) ? stemp2 : "");
             mqtt_publish(stemp1, "", sysCfg.mqtt_power_retain);
           }
         }
