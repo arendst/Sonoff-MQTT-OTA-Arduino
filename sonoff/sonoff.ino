@@ -10,7 +10,7 @@
  * ====================================================
 */
 
-#define VERSION                0x03010700   // 3.1.7
+#define VERSION                0x03010B00   // 3.1.11
 
 #define SONOFF                 1            // Sonoff, Sonoff RF, Sonoff SV, Sonoff Dual, Sonoff TH, S20 Smart Socket, 4 Channel
 #define SONOFF_POW             9            // Sonoff Pow
@@ -117,6 +117,9 @@ enum butt_t {PRESSED, NOT_PRESSED};
   #include <ESP8266WebServer.h>             // WifiManager, Webserver
   #include <DNSServer.h>                    // WifiManager
 #endif  // USE_WEBSERVER
+#ifdef USE_DISCOVERY
+  #include <ESP8266mDNS.h>                  // MQTT, Webserver
+#endif
 #ifdef USE_SPIFFS
   #include <FS.h>                           // Config
 #endif
@@ -343,6 +346,7 @@ uint16_t blink_counter = 0;           // Number of blink cycles
 uint8_t blink_power;                  // Blink power state
 uint8_t blink_mask = 0;               // Blink relay active mask
 uint8_t blink_powersave;              // Blink start power save state
+uint16_t mqtt_cmnd_publish = 0;       // ignore flag for publish command
 
 #ifdef USE_MQTT_TLS
   WiFiClientSecure espClient;         // Wifi Secure Client
@@ -367,6 +371,7 @@ uint8_t lastbutton2 = NOT_PRESSED;    // Last button 2 state
 uint8_t lastbutton3 = NOT_PRESSED;    // Last button 3 state
 uint8_t lastbutton4 = NOT_PRESSED;    // Last button 4 state
 
+boolean mDNSbegun = false;
 boolean udpConnected = false;
 #ifdef USE_WEMO_EMULATION
   #define WEMO_BUFFER_SIZE 200        // Max UDP buffer size needed for M-SEARCH message
@@ -758,7 +763,7 @@ unsigned long getKeyIntValue(const char *json, const char *key)
 
 /********************************************************************************************/
 
-void mqtt_publish(const char* topic, const char* data, boolean retained)
+void mqtt_publish_sec(const char* topic, const char* data, boolean retained)
 {
   char log[TOPSZ+MESSZ];
 
@@ -770,6 +775,17 @@ void mqtt_publish(const char* topic, const char* data, boolean retained)
   }
   addLog(LOG_LEVEL_INFO, log);
   if (sysCfg.ledstate &0x04) blinks++;
+}
+
+void mqtt_publish(const char* topic, const char* data, boolean retained)
+{
+  char *me;
+
+  if (!strcmp(SUB_PREFIX,PUB_PREFIX)) {
+    me = strstr(topic,SUB_PREFIX);
+    if (me == topic) mqtt_cmnd_publish += 8;
+  }
+  mqtt_publish_sec(topic, data, retained);
 }
 
 void mqtt_publish(const char* topic, const char* data)
@@ -841,11 +857,11 @@ void mqtt_connected()
 
   if (mqttflag) {
     if (sysCfg.message_format == JSON) {
-      snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/RESULT"), PUB_PREFIX, sysCfg.mqtt_topic);
+      snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/RESULT"), PUB_PREFIX2, sysCfg.mqtt_topic);
       snprintf_P(svalue, sizeof(svalue), PSTR("{\"Info1\":{\"AppName\":\"" APP_NAME "\", \"Version\":\"%s\", \"FallbackTopic\":\"%s\", \"GroupTopic\":\"%s\"}}"),
         Version, MQTTClient, sysCfg.mqtt_grptopic);
     } else {
-      snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/INFO"), PUB_PREFIX, sysCfg.mqtt_topic);
+      snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/INFO"), PUB_PREFIX2, sysCfg.mqtt_topic);
       snprintf_P(svalue, sizeof(svalue), PSTR(APP_NAME " version %s, FallbackTopic %s, GroupTopic %s"), Version, MQTTClient, sysCfg.mqtt_grptopic);
     }
     mqtt_publish(stopic, svalue);
@@ -908,6 +924,11 @@ void mqtt_reconnect()
       addLog_P(LOG_LEVEL_DEBUG, PSTR("MQTT: WARNING - Insecure connection due to invalid Fingerprint"));
     }
 #endif  // USE_MQTT_TLS
+#ifdef USE_DISCOVERY
+#ifdef MQTT_HOST_DISCOVERY
+    mdns_discoverMQTTServer();
+#endif  // MQTT_HOST_DISCOVERY    
+#endif  // USE_DISCOVERY
     mqttClient.setServer(sysCfg.mqtt_host, sysCfg.mqtt_port);
     mqttClient.setCallback(mqttDataCb);
     mqttflag = 1;
@@ -916,14 +937,12 @@ void mqtt_reconnect()
   }
 
   addLog_P(LOG_LEVEL_INFO, PSTR("MQTT: Attempting connection..."));
-  snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/TELEMETRY"), PUB_PREFIX2, sysCfg.mqtt_topic);
-  snprintf_P(svalue, sizeof(svalue), PSTR("{\"LWT\":\"Offline\"}"));
-  if (sysCfg.message_format != JSON) json2legacy(stopic, svalue);
-  if (mqttClient.connect(MQTTClient, sysCfg.mqtt_user, sysCfg.mqtt_pwd, stopic, 0, 0, svalue)) {
+  snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/LWT"), PUB_PREFIX2, sysCfg.mqtt_topic);
+  snprintf_P(svalue, sizeof(svalue), PSTR("Offline"));
+  if (mqttClient.connect(MQTTClient, sysCfg.mqtt_user, sysCfg.mqtt_pwd, stopic, 1, true, svalue)) {
     addLog_P(LOG_LEVEL_INFO, PSTR("MQTT: Connected"));
     mqttcounter = 0;
-    snprintf_P(svalue, sizeof(svalue), PSTR("{\"LWT\":\"Online\"}"));
-    if (sysCfg.message_format != JSON) json2legacy(stopic, svalue);
+    snprintf_P(svalue, sizeof(svalue), PSTR("Online"));
     mqtt_publish(stopic, svalue, true);
     udpConnected = false;
     mqtt_connected();
@@ -935,12 +954,21 @@ void mqtt_reconnect()
 
 void mqttDataCb(char* topic, byte* data, unsigned int data_len)
 {
+  char *str;
+  char svalue[MESSZ];
+  
+  if (!strcmp(SUB_PREFIX,PUB_PREFIX)) {
+    str = strstr(topic,SUB_PREFIX);
+    if ((str == topic) && mqtt_cmnd_publish) {
+      if (mqtt_cmnd_publish > 8) mqtt_cmnd_publish -= 8; else mqtt_cmnd_publish = 0;
+      return;
+    }
+  }
+  
   uint16_t i = 0, grpflg = 0, index;
   char topicBuf[TOPSZ], dataBuf[data_len+1], dataBufUc[MESSZ];
-  char *str, *p, *mtopic = NULL, *type = NULL, *devc = NULL;
-  char stopic[TOPSZ], svalue[MESSZ], stemp1[TOPSZ], stemp2[10], stemp3[10];
-  float ped, pi, pc;
-  uint16_t pe, pw, pu;
+  char *p, *mtopic = NULL, *type = NULL, *devc = NULL;
+  char stopic[TOPSZ], stemp1[TOPSZ], stemp2[10];
 
   strncpy(topicBuf, topic, sizeof(topicBuf));
   memcpy(dataBuf, data, sizeof(dataBuf));
@@ -1036,7 +1064,8 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     if (sysCfg.ledstate &0x02) blinks++;
 
     if (!strcmp(dataBufUc,"?")) data_len = 0;
-    int16_t payload = atoi(dataBuf);
+    int16_t payload = atoi(dataBuf);     // -32766 - 32767
+    uint16_t payload16 = atoi(dataBuf);  // 0 - 65535
     if (!strcmp(dataBufUc,"OFF") || !strcmp(dataBufUc,"STOP")) payload = 0;
     if (!strcmp(dataBufUc,"ON") || !strcmp(dataBufUc,"START") || !strcmp(dataBufUc,"USER")) payload = 1;
     if (!strcmp(dataBufUc,"TOGGLE") || !strcmp(dataBufUc,"ADMIN")) payload = 2;
@@ -1051,115 +1080,8 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     }
     else if (!strcmp(type,"STATUS")) {
       if ((data_len == 0) || (payload < 0) || (payload > MAX_STATUS)) payload = 99;
-      if ((payload == 0) || (payload == 99)) {
-        if (sysCfg.message_format == JSON) {
-          snprintf_P(svalue, sizeof(svalue), PSTR("{\"Status\":{Version\":\"%s\", \"Model\":%d, \"Topic\":\"%s\", \"ButtonTopic\":\"%s\", \"Subtopic\":\"%s\", \"Power\":%d, \"PowerOnState\":%d, \"Timezone\":%d, \"LedState\":%d, \"SaveData\":%d, \"SaveState\":%d, \"ButtonRetain\":%d, \"PowerRetain\":%d}}"),
-            Version, sysCfg.model, sysCfg.mqtt_topic, sysCfg.mqtt_topic2, sysCfg.mqtt_subtopic, power, sysCfg.poweronstate, sysCfg.timezone, sysCfg.ledstate, sysCfg.savedata, sysCfg.savestate, sysCfg.mqtt_button_retain, sysCfg.mqtt_power_retain);
-        } else {
-          snprintf_P(svalue, sizeof(svalue), PSTR("%s, %d, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d, %d"),
-            Version, sysCfg.model, sysCfg.mqtt_topic, sysCfg.mqtt_topic2, sysCfg.mqtt_subtopic, power, sysCfg.poweronstate, sysCfg.timezone, sysCfg.ledstate, sysCfg.savedata, sysCfg.savestate, sysCfg.mqtt_button_retain, sysCfg.mqtt_power_retain);
-        }
-        if (payload == 0) mqtt_publish(stopic, svalue);
-      }
-#ifdef USE_POWERMONITOR
-      if ((payload == 0) || (payload == 8)) {
-        hlw_readEnergy(0, ped, pe, pw, pu, pi, pc);
-        dtostrf(pi, 1, 3, stemp1);
-        dtostrf(ped, 1, 3, stemp2);
-        dtostrf(pc, 1, 2, stemp3);
-        if (sysCfg.message_format == JSON) {
-          snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusPWR\":{\"Voltage\":%d, \"Current\":\"%s\", \"Power\":%d, \"Today\":\"%s\", \"Factor\":\"%s\"}}"),
-            pu, stemp1, pw, stemp2, stemp3);
-        } else {
-          snprintf_P(svalue, sizeof(svalue), PSTR("PWR: Voltage %d V, Current %s A, Power %d W, Today %s kWh, Factor %s"),
-            pu, stemp1, pw, stemp2, stemp3);
-        }
-        if (payload == 0) mqtt_publish(stopic, svalue);
-      }
-      if ((payload == 0) || (payload == 9)) {
-        if (sysCfg.message_format == JSON) {
-          snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusPWRThreshold\":{\"PowerLow\":%d, \"PowerHigh\":%d, \"VoltageLow\":%d, \"VoltageHigh\":%d, \"CurrentLow\":%d, \"CurrentHigh\":%d}}"),
-            sysCfg.hlw_pmin, sysCfg.hlw_pmax, sysCfg.hlw_umin, sysCfg.hlw_umax, sysCfg.hlw_imin, sysCfg.hlw_imax);
-        } else {
-          snprintf_P(svalue, sizeof(svalue), PSTR("PWR Threshold: PowerLow %d W, PowerHigh %d W, VoltageLow %d V, VoltageHigh %d V, CurrentLow %d mA, CurrentHigh %d mA"),
-            sysCfg.hlw_pmin, sysCfg.hlw_pmax, sysCfg.hlw_umin, sysCfg.hlw_umax, sysCfg.hlw_imin, sysCfg.hlw_imax);
-        }
-        if (payload == 0) mqtt_publish(stopic, svalue);
-      }
-#endif  // USE_POWERMONITOR
-      if ((payload == 0) || (payload == 1)) {
-        if (sysCfg.message_format == JSON) {
-          snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusPRM\":{\"Baudrate\":%d, \"GroupTopic\":\"%s\", \"OtaUrl\":\"%s\", \"Uptime\":%d, \"BootCount\":%d, \"SaveCount\":%d}}"),
-            Baudrate, sysCfg.mqtt_grptopic, sysCfg.otaUrl, uptime, sysCfg.bootcount, sysCfg.saveFlag);
-        } else {
-          snprintf_P(svalue, sizeof(svalue), PSTR("PRM: Baudrate %d, GroupTopic %s, OtaUrl %s, Uptime %d Hr, BootCount %d, SaveCount %d"),
-            Baudrate, sysCfg.mqtt_grptopic, sysCfg.otaUrl, uptime, sysCfg.bootcount, sysCfg.saveFlag);
-        }
-        if (payload == 0) mqtt_publish(stopic, svalue);
-      }
-      if ((payload == 0) || (payload == 2)) {
-        if (sysCfg.message_format == JSON) {
-          snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusFWR\":{\"Program\":\"%s\", \"Boot\":%d, \"SDK\":\"%s\"}}"),
-            Version, ESP.getBootVersion(), ESP.getSdkVersion());
-        } else {
-          snprintf_P(svalue, sizeof(svalue), PSTR("FWR: Program %s, Boot %d, SDK %s"),
-            Version, ESP.getBootVersion(), ESP.getSdkVersion());
-        }
-        if (payload == 0) mqtt_publish(stopic, svalue);
-      }
-      if ((payload == 0) || (payload == 3)) {
-        if (sysCfg.message_format == JSON) {
-          snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusLOG\":{\"Seriallog\":%d, \"Weblog\":%d, \"Syslog\":%d, \"LogHost\":\"%s\", \"SSId1\":\"%s\", \"Password1\":\"%s\", \"SSId2\":\"%s\", \"Password2\":\"%s\", \"TelePeriod\":%d}}"),
-            sysCfg.seriallog_level, sysCfg.weblog_level, sysCfg.syslog_level, sysCfg.syslog_host, sysCfg.sta_ssid[0], sysCfg.sta_pwd[0], sysCfg.sta_ssid[1], sysCfg.sta_pwd[1], sysCfg.tele_period);
-        } else {
-          snprintf_P(svalue, sizeof(svalue), PSTR("LOG: Seriallog %d, Weblog %d, Syslog %d, LogHost %s, SSId1 %s, Password1 %s, SSId2 %s, Password2 %s, TelePeriod %d"),
-            sysCfg.seriallog_level, sysCfg.weblog_level, sysCfg.syslog_level, sysCfg.syslog_host, sysCfg.sta_ssid[0], sysCfg.sta_pwd[0], sysCfg.sta_ssid[1], sysCfg.sta_pwd[1], sysCfg.tele_period);
-        }
-        if (payload == 0) mqtt_publish(stopic, svalue);
-      }
-      if ((payload == 0) || (payload == 4)) {
-        if (sysCfg.message_format == JSON) {
-          snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusMEM\":{\"ProgramSize\":%d, \"Free\":%d, \"Heap\":%d, \"SpiffsStart\":%d, \"SpiffsSize\":%d, \"FlashSize\":%d, \"ProgramFlashSize\":%d}}"),
-            ESP.getSketchSize()/1024, ESP.getFreeSketchSpace()/1024, ESP.getFreeHeap()/1024, ((uint32_t)&_SPIFFS_start - 0x40200000)/1024,
-            (((uint32_t)&_SPIFFS_end - 0x40200000) - ((uint32_t)&_SPIFFS_start - 0x40200000))/1024, ESP.getFlashChipRealSize()/1024, ESP.getFlashChipSize()/1024);
-        } else {
-          snprintf_P(svalue, sizeof(svalue), PSTR("MEM: ProgramSize %dkB, Free %dkB (Heap %dkB), SpiffsStart %dkB (%dkB), FlashSize %dkB (%dkB)"),
-            ESP.getSketchSize()/1024, ESP.getFreeSketchSpace()/1024, ESP.getFreeHeap()/1024, ((uint32_t)&_SPIFFS_start - 0x40200000)/1024,
-            (((uint32_t)&_SPIFFS_end - 0x40200000) - ((uint32_t)&_SPIFFS_start - 0x40200000))/1024, ESP.getFlashChipRealSize()/1024, ESP.getFlashChipSize()/1024);
-        }
-        if (payload == 0) mqtt_publish(stopic, svalue);
-      }
-      if ((payload == 0) || (payload == 5)) {
-        if (sysCfg.message_format == JSON) {
-          snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusNET\":{\"Host\":\"%s\", \"IP\":\"%s\", \"Gateway\":\"%s\", \"Subnetmask\":\"%s\", \"Mac\":\"%s\", \"Webserver\":%d, \"WifiConfig\":%d}}"),
-            Hostname, WiFi.localIP().toString().c_str(), WiFi.gatewayIP().toString().c_str(), WiFi.subnetMask().toString().c_str(),
-            WiFi.macAddress().c_str(), sysCfg.webserver, sysCfg.sta_config);
-        } else {
-          snprintf_P(svalue, sizeof(svalue), PSTR("NET: Host %s, IP %s, Gateway %s, Subnetmask %s, Mac %s, Webserver %d, WifiConfig %d"),
-            Hostname, WiFi.localIP().toString().c_str(), WiFi.gatewayIP().toString().c_str(), WiFi.subnetMask().toString().c_str(),
-            WiFi.macAddress().c_str(), sysCfg.webserver, sysCfg.sta_config);
-        }
-        if (payload == 0) mqtt_publish(stopic, svalue);
-      }
-      if ((payload == 0) || (payload == 6)) {
-        if (sysCfg.message_format == JSON) {
-          snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusMQT\":{\"Host\":\"%s\", \"Port\":%d, \"ClientMask\":\"%s\", \"Client\":\"%s\", \"User\":\"%s\", \"Password\":\"%s\", \"MAX_PACKET_SIZE\":%d, \"KEEPALIVE\":%d}}"),
-            sysCfg.mqtt_host, sysCfg.mqtt_port, sysCfg.mqtt_client, MQTTClient, sysCfg.mqtt_user, sysCfg.mqtt_pwd, MQTT_MAX_PACKET_SIZE, MQTT_KEEPALIVE);
-        } else {
-          snprintf_P(svalue, sizeof(svalue), PSTR("MQT: Host %s, Port %d, Client %s (%s), User %s, Password %s, MAX_PACKET_SIZE %d, KEEPALIVE %d"),
-            sysCfg.mqtt_host, sysCfg.mqtt_port, sysCfg.mqtt_client, MQTTClient, sysCfg.mqtt_user, sysCfg.mqtt_pwd, MQTT_MAX_PACKET_SIZE, MQTT_KEEPALIVE);
-        }
-        if (payload == 0) mqtt_publish(stopic, svalue);
-      }
-      if ((payload == 0) || (payload == 7)) {
-        if (sysCfg.message_format == JSON) {
-          snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusTIM\":{\"UTC\":\"%s\", \"Local\":\"%s\", \"StartDST\":\"%s\", \"EndDST\":\"%s\"}}"),
-            rtc_time(0).c_str(), rtc_time(1).c_str(), rtc_time(2).c_str(), rtc_time(3).c_str());
-        } else {
-          snprintf_P(svalue, sizeof(svalue), PSTR("TIM: UTC %s, Local %s, StartDST %s, EndDST %s"),
-            rtc_time(0).c_str(), rtc_time(1).c_str(), rtc_time(2).c_str(), rtc_time(3).c_str());
-        }
-      }
+      publish_status(payload);
+      return;
     }
 #if (MODULE != MOTOR_CAC)
     else if (!strcmp(type,"POWERONSTATE")) {
@@ -1170,8 +1092,8 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     }
 #endif
     else if (!strcmp(type,"PULSETIME")) {
-      if ((data_len > 0) && (payload >= 0) && (payload <= 3600)) {
-        sysCfg.pulsetime = payload;
+      if (data_len > 0) {
+        sysCfg.pulsetime = payload16;  // 0 - 65535
         pulse_timer = 0;
       }
       snprintf_P(svalue, sizeof(svalue), PSTR("{\"PulseTime\":%d}"), sysCfg.pulsetime);
@@ -1184,8 +1106,8 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
       snprintf_P(svalue, sizeof(svalue), PSTR("{\"BlinkTime\":%d}"), sysCfg.blinktime);
     }
     else if (!strcmp(type,"BLINKCOUNT")) {
-      if ((data_len > 0) && (payload >= 0) && (payload <= 32000)) {
-        sysCfg.blinkcount = payload;
+      if (data_len > 0) {
+        sysCfg.blinkcount = payload16;  // 0 - 65535
         if (blink_counter) blink_counter = sysCfg.blinkcount *2;
       }
       snprintf_P(svalue, sizeof(svalue), PSTR("{\"BlinkCount\":%d}"), sysCfg.blinkcount);
@@ -1664,7 +1586,7 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     if (sysCfg.message_format != JSON) json2legacy(stopic, svalue);
     mqtt_publish(stopic, svalue);
 
-    snprintf_P(svalue, sizeof(svalue), PSTR("{\"Commands3\":\"%s%s, PulseTime"), (sysCfg.model == SONOFF) ? "Power, Light" : "Power1, Power2, Light1 Light2", (MODULE != MOTOR_CAC) ? ", PowerOnState" : "");
+    snprintf_P(svalue, sizeof(svalue), PSTR("{\"Commands3\":\"%s%s, PulseTime, BlinkTime, BlinkCount"), (sysCfg.model == SONOFF) ? "Power, Light" : "Power1, Power2, Light1 Light2", (MODULE != MOTOR_CAC) ? ", PowerOnState" : "");
 #ifdef USE_WEBSERVER
     snprintf_P(svalue, sizeof(svalue), PSTR("%s, Weblog, Webserver"), svalue);
 #endif
@@ -1718,10 +1640,10 @@ void send_button_power(byte device, byte state)
       sysCfg.domoticz_key_idx[device -1], (state) ? "On" : "Off");
     mqtt_publish(stopic, svalue);
   } else {
-    mqtt_publish(stopic, svalue, sysCfg.mqtt_button_retain);
+    mqtt_publish_sec(stopic, svalue, sysCfg.mqtt_button_retain);
   }
 #else
-  mqtt_publish(stopic, svalue, sysCfg.mqtt_button_retain);
+  mqtt_publish_sec(stopic, svalue, sysCfg.mqtt_button_retain);
 #endif  // USE_DOMOTICZ
 }
 
@@ -1737,6 +1659,7 @@ void do_cmnd_power(byte device, byte state)
 
   if ((device < 1) || (device > Maxdevice)) device = 1;
   byte mask = 0x01 << (device -1);
+  pulse_timer = 0;
   if (state <= 2) {
     if ((blink_mask & mask)) {
       blink_mask &= (0xFF ^ mask);  // Clear device mask
@@ -1762,7 +1685,7 @@ void do_cmnd_power(byte device, byte state)
   else if (state == 3) { // Blink
     if (!(blink_mask & mask)) {
       blink_powersave = (blink_powersave & (0xFF ^ mask)) | (power & mask);  // Save state
-      blink_power = (power & mask) ? 0 : 1;  // Toggle
+      blink_power = (power >> (device -1))&1;  // Prep to Toggle
     }
     blink_timer = 1;
     blink_counter = ((!sysCfg.blinkcount) ? 64000 : (sysCfg.blinkcount *2)) +1;
@@ -1810,6 +1733,139 @@ void do_cmnd(char *cmnd)
   snprintf_P(svalue, sizeof(svalue), PSTR("%s"), (token == NULL) ? "" : token);
   mqttDataCb(stopic, (byte*)svalue, strlen(svalue));
 }
+
+void publish_status(uint8_t payload)
+{
+  char stopic[TOPSZ], svalue[MESSZ], stemp1[TOPSZ], stemp2[10], stemp3[10];
+  float ped, pi, pc;
+  uint16_t pe, pw, pu;
+
+  // Workaround MQTT - TCP/IP stack queueing when SUB_PREFIX = PUB_PREFIX
+  snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/RESULT"),
+    (!strcmp(SUB_PREFIX,PUB_PREFIX) && (!payload))?PUB_PREFIX2:PUB_PREFIX, sysCfg.mqtt_topic);
+
+  if ((payload == 0) || (payload == 99)) {
+    if (sysCfg.message_format == JSON) {
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"Status\":{Version\":\"%s\", \"Model\":%d, \"Topic\":\"%s\", \"ButtonTopic\":\"%s\", \"Subtopic\":\"%s\", \"Power\":%d, \"PowerOnState\":%d, \"Timezone\":%d, \"LedState\":%d, \"SaveData\":%d, \"SaveState\":%d, \"ButtonRetain\":%d, \"PowerRetain\":%d}}"),
+        Version, sysCfg.model, sysCfg.mqtt_topic, sysCfg.mqtt_topic2, sysCfg.mqtt_subtopic, power, sysCfg.poweronstate, sysCfg.timezone, sysCfg.ledstate, sysCfg.savedata, sysCfg.savestate, sysCfg.mqtt_button_retain, sysCfg.mqtt_power_retain);
+    } else {
+      snprintf_P(svalue, sizeof(svalue), PSTR("%s, %d, %s, %s, %s, %d, %d, %d, %d, %d, %d, %d, %d"),
+        Version, sysCfg.model, sysCfg.mqtt_topic, sysCfg.mqtt_topic2, sysCfg.mqtt_subtopic, power, sysCfg.poweronstate, sysCfg.timezone, sysCfg.ledstate, sysCfg.savedata, sysCfg.savestate, sysCfg.mqtt_button_retain, sysCfg.mqtt_power_retain);
+    }
+    if (payload == 0) mqtt_publish(stopic, svalue);
+  }
+
+#ifdef USE_POWERMONITOR
+  if ((payload == 0) || (payload == 8)) {
+    hlw_readEnergy(0, ped, pe, pw, pu, pi, pc);
+    dtostrf(pi, 1, 3, stemp1);
+    dtostrf(ped, 1, 3, stemp2);
+    dtostrf(pc, 1, 2, stemp3);
+    if (sysCfg.message_format == JSON) {
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusPWR\":{\"Voltage\":%d, \"Current\":\"%s\", \"Power\":%d, \"Today\":\"%s\", \"Factor\":\"%s\"}}"),
+        pu, stemp1, pw, stemp2, stemp3);
+    } else {
+      snprintf_P(svalue, sizeof(svalue), PSTR("PWR: Voltage %d V, Current %s A, Power %d W, Today %s kWh, Factor %s"),
+        pu, stemp1, pw, stemp2, stemp3);
+    }
+    if (payload == 0) mqtt_publish(stopic, svalue);
+  }
+
+  if ((payload == 0) || (payload == 9)) {
+    if (sysCfg.message_format == JSON) {
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusPWRThreshold\":{\"PowerLow\":%d, \"PowerHigh\":%d, \"VoltageLow\":%d, \"VoltageHigh\":%d, \"CurrentLow\":%d, \"CurrentHigh\":%d}}"),
+        sysCfg.hlw_pmin, sysCfg.hlw_pmax, sysCfg.hlw_umin, sysCfg.hlw_umax, sysCfg.hlw_imin, sysCfg.hlw_imax);
+    } else {
+      snprintf_P(svalue, sizeof(svalue), PSTR("PWR Threshold: PowerLow %d W, PowerHigh %d W, VoltageLow %d V, VoltageHigh %d V, CurrentLow %d mA, CurrentHigh %d mA"),
+        sysCfg.hlw_pmin, sysCfg.hlw_pmax, sysCfg.hlw_umin, sysCfg.hlw_umax, sysCfg.hlw_imin, sysCfg.hlw_imax);
+    }
+    if (payload == 0) mqtt_publish(stopic, svalue);
+  }
+#endif  // USE_POWERMONITOR
+
+  if ((payload == 0) || (payload == 1)) {
+    if (sysCfg.message_format == JSON) {
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusPRM\":{\"Baudrate\":%d, \"GroupTopic\":\"%s\", \"OtaUrl\":\"%s\", \"Uptime\":%d, \"BootCount\":%d, \"SaveCount\":%d}}"),
+        Baudrate, sysCfg.mqtt_grptopic, sysCfg.otaUrl, uptime, sysCfg.bootcount, sysCfg.saveFlag);
+    } else {
+      snprintf_P(svalue, sizeof(svalue), PSTR("PRM: Baudrate %d, GroupTopic %s, OtaUrl %s, Uptime %d Hr, BootCount %d, SaveCount %d"),
+        Baudrate, sysCfg.mqtt_grptopic, sysCfg.otaUrl, uptime, sysCfg.bootcount, sysCfg.saveFlag);
+    }
+    if (payload == 0) mqtt_publish(stopic, svalue);
+  }
+
+  if ((payload == 0) || (payload == 2)) {
+    if (sysCfg.message_format == JSON) {
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusFWR\":{\"Program\":\"%s\", \"Boot\":%d, \"SDK\":\"%s\"}}"),
+        Version, ESP.getBootVersion(), ESP.getSdkVersion());
+    } else {
+      snprintf_P(svalue, sizeof(svalue), PSTR("FWR: Program %s, Boot %d, SDK %s"),
+        Version, ESP.getBootVersion(), ESP.getSdkVersion());
+    }
+    if (payload == 0) mqtt_publish(stopic, svalue);
+  }
+
+  if ((payload == 0) || (payload == 3)) {
+    if (sysCfg.message_format == JSON) {
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusLOG\":{\"Seriallog\":%d, \"Weblog\":%d, \"Syslog\":%d, \"LogHost\":\"%s\", \"SSId1\":\"%s\", \"Password1\":\"%s\", \"SSId2\":\"%s\", \"Password2\":\"%s\", \"TelePeriod\":%d}}"),
+        sysCfg.seriallog_level, sysCfg.weblog_level, sysCfg.syslog_level, sysCfg.syslog_host, sysCfg.sta_ssid[0], sysCfg.sta_pwd[0], sysCfg.sta_ssid[1], sysCfg.sta_pwd[1], sysCfg.tele_period);
+    } else {
+      snprintf_P(svalue, sizeof(svalue), PSTR("LOG: Seriallog %d, Weblog %d, Syslog %d, LogHost %s, SSId1 %s, Password1 %s, SSId2 %s, Password2 %s, TelePeriod %d"),
+        sysCfg.seriallog_level, sysCfg.weblog_level, sysCfg.syslog_level, sysCfg.syslog_host, sysCfg.sta_ssid[0], sysCfg.sta_pwd[0], sysCfg.sta_ssid[1], sysCfg.sta_pwd[1], sysCfg.tele_period);
+    }
+    if (payload == 0) mqtt_publish(stopic, svalue);
+  }
+
+  if ((payload == 0) || (payload == 4)) {
+    if (sysCfg.message_format == JSON) {
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusMEM\":{\"ProgramSize\":%d, \"Free\":%d, \"Heap\":%d, \"SpiffsStart\":%d, \"SpiffsSize\":%d, \"FlashSize\":%d, \"ProgramFlashSize\":%d}}"),
+        ESP.getSketchSize()/1024, ESP.getFreeSketchSpace()/1024, ESP.getFreeHeap()/1024, ((uint32_t)&_SPIFFS_start - 0x40200000)/1024,
+        (((uint32_t)&_SPIFFS_end - 0x40200000) - ((uint32_t)&_SPIFFS_start - 0x40200000))/1024, ESP.getFlashChipRealSize()/1024, ESP.getFlashChipSize()/1024);
+    } else {
+      snprintf_P(svalue, sizeof(svalue), PSTR("MEM: ProgramSize %dkB, Free %dkB (Heap %dkB), SpiffsStart %dkB (%dkB), FlashSize %dkB (%dkB)"),
+        ESP.getSketchSize()/1024, ESP.getFreeSketchSpace()/1024, ESP.getFreeHeap()/1024, ((uint32_t)&_SPIFFS_start - 0x40200000)/1024,
+        (((uint32_t)&_SPIFFS_end - 0x40200000) - ((uint32_t)&_SPIFFS_start - 0x40200000))/1024, ESP.getFlashChipRealSize()/1024, ESP.getFlashChipSize()/1024);
+    }
+    if (payload == 0) mqtt_publish(stopic, svalue);
+  }
+
+  if ((payload == 0) || (payload == 5)) {
+    if (sysCfg.message_format == JSON) {
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusNET\":{\"Host\":\"%s\", \"IP\":\"%s\", \"Gateway\":\"%s\", \"Subnetmask\":\"%s\", \"Mac\":\"%s\", \"Webserver\":%d, \"WifiConfig\":%d}}"),
+        Hostname, WiFi.localIP().toString().c_str(), WiFi.gatewayIP().toString().c_str(), WiFi.subnetMask().toString().c_str(),
+        WiFi.macAddress().c_str(), sysCfg.webserver, sysCfg.sta_config);
+    } else {
+      snprintf_P(svalue, sizeof(svalue), PSTR("NET: Host %s, IP %s, Gateway %s, Subnetmask %s, Mac %s, Webserver %d, WifiConfig %d"),
+        Hostname, WiFi.localIP().toString().c_str(), WiFi.gatewayIP().toString().c_str(), WiFi.subnetMask().toString().c_str(),
+        WiFi.macAddress().c_str(), sysCfg.webserver, sysCfg.sta_config);
+    }
+    if (payload == 0) mqtt_publish(stopic, svalue);
+  }
+
+  if ((payload == 0) || (payload == 6)) {
+    if (sysCfg.message_format == JSON) {
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusMQT\":{\"Host\":\"%s\", \"Port\":%d, \"ClientMask\":\"%s\", \"Client\":\"%s\", \"User\":\"%s\", \"Password\":\"%s\", \"MAX_PACKET_SIZE\":%d, \"KEEPALIVE\":%d}}"),
+        sysCfg.mqtt_host, sysCfg.mqtt_port, sysCfg.mqtt_client, MQTTClient, sysCfg.mqtt_user, sysCfg.mqtt_pwd, MQTT_MAX_PACKET_SIZE, MQTT_KEEPALIVE);
+    } else {
+      snprintf_P(svalue, sizeof(svalue), PSTR("MQT: Host %s, Port %d, Client %s (%s), User %s, Password %s, MAX_PACKET_SIZE %d, KEEPALIVE %d"),
+        sysCfg.mqtt_host, sysCfg.mqtt_port, sysCfg.mqtt_client, MQTTClient, sysCfg.mqtt_user, sysCfg.mqtt_pwd, MQTT_MAX_PACKET_SIZE, MQTT_KEEPALIVE);
+    }
+    if (payload == 0) mqtt_publish(stopic, svalue);
+  }
+
+  if ((payload == 0) || (payload == 7)) {
+    if (sysCfg.message_format == JSON) {
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"StatusTIM\":{\"UTC\":\"%s\", \"Local\":\"%s\", \"StartDST\":\"%s\", \"EndDST\":\"%s\", \"Timezone\":%d}}"),
+        rtc_time(0).c_str(), rtc_time(1).c_str(), rtc_time(2).c_str(), rtc_time(3).c_str(), sysCfg.timezone);
+    } else {
+      snprintf_P(svalue, sizeof(svalue), PSTR("TIM: UTC %s, Local %s, StartDST %s, EndDST %s, Timezone %d"),
+        rtc_time(0).c_str(), rtc_time(1).c_str(), rtc_time(2).c_str(), rtc_time(3).c_str(), sysCfg.timezone);
+    }
+  }
+  mqtt_publish(stopic, svalue);
+}
+
+/********************************************************************************************/
 
 #ifdef USE_POWERMONITOR
 boolean hlw_margin(byte type, uint16_t margin, uint16_t value, byte &flag, byte &saveflag)
@@ -1985,6 +2041,8 @@ void hlw_margin_chk()
 }
 #endif  // USE_POWERMONITOR
 
+/********************************************************************************************/
+
 void every_second_cb()
 {
   // 1 second rtc interrupt routine
@@ -2011,6 +2069,8 @@ void every_second()
 
   snprintf_P(stime, sizeof(stime), PSTR("%04d-%02d-%02dT%02d:%02d:%02d"),
     rtcTime.Year, rtcTime.Month, rtcTime.Day, rtcTime.Hour, rtcTime.Minute, rtcTime.Second);
+
+  if (pulse_timer > 111) pulse_timer--;
 
   if (syslog_timer) {  // Restore syslog level
     syslog_timer--;
@@ -2312,7 +2372,9 @@ void stateloop()
     every_second();
   }
 
-  if (pulse_timer) {
+  if (mqtt_cmnd_publish) mqtt_cmnd_publish--;  // Clean up
+
+  if ((pulse_timer > 0) && (pulse_timer < 112)) {
     pulse_timer--;
     if (!pulse_timer) do_cmnd_power(1, 0);
   }
@@ -2511,7 +2573,7 @@ void stateloop()
       savedatacounter--;
       if (savedatacounter <= 0) {
         if (sysCfg.savestate) {
-          if (!(sysCfg.pulsetime && ((sysCfg.power &0xFE) == (power &0xFE)))) sysCfg.power = power;
+          if (!((sysCfg.pulsetime < 30) && ((sysCfg.power &0xFE) == (power &0xFE)))) sysCfg.power = power;
         }
         CFG_Save();
         savedatacounter = sysCfg.savedata;
