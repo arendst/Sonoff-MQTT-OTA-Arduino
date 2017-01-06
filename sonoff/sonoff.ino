@@ -10,7 +10,7 @@
  * ====================================================
 */
 
-#define VERSION                0x03010B00   // 3.1.11
+#define VERSION                0x03010C00   // 3.1.12
 
 #define SONOFF                 1            // Sonoff, Sonoff RF, Sonoff SV, Sonoff Dual, Sonoff TH, S20 Smart Socket, 4 Channel
 #define SONOFF_POW             9            // Sonoff Pow
@@ -86,7 +86,7 @@ enum led_t   {LED_OFF, LED_POWER, LED_MQTTSUB, LED_POWER_MQTTSUB, LED_MQTTPUB, L
 
 #define STATES                 10           // loops per second
 #define SYSLOG_TIMER           600          // Seconds to restore syslog_level
-#define OTA_ATTEMPTS           5            // Nr. of times to try fetching the new firmware
+#define OTA_ATTEMPTS           5            // Number of times to try fetching the new firmware
 
 #define INPUT_BUFFER_SIZE      100          // Max number of characters in serial buffer
 #define TOPSZ                  60           // Max number of characters in topic string
@@ -332,7 +332,7 @@ unsigned long timerxs = 0;            // State loop timer
 int state = 0;                        // State per second flag
 int mqttflag = 2;                     // MQTT connection messages flag
 int otaflag = 0;                      // OTA state flag
-int otaok = false;                    // OTA result
+int otaok = 0;                        // OTA result
 int restartflag = 0;                  // Sonoff restart flag
 int wificheckflag = WIFI_RESTART;     // Wifi state flag
 int uptime = 0;                       // Current uptime in hours
@@ -938,6 +938,14 @@ void mqtt_reconnect()
   }
 
   addLog_P(LOG_LEVEL_INFO, PSTR("MQTT: Attempting connection..."));
+#ifndef USE_MQTT_TLS
+#ifdef USE_DISCOVERY
+#ifdef MQTT_HOST_DISCOVERY
+  mdns_discoverMQTTServer();
+#endif  // MQTT_HOST_DISCOVERY
+#endif  // USE_DISCOVERY
+#endif  // USE_MQTT_TLS
+  mqttClient.setServer(sysCfg.mqtt_host, sysCfg.mqtt_port);
   snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/LWT"), PUB_PREFIX2, sysCfg.mqtt_topic);
   snprintf_P(svalue, sizeof(svalue), PSTR("Offline"));
   if (mqttClient.connect(MQTTClient, sysCfg.mqtt_user, sysCfg.mqtt_pwd, stopic, 1, true, svalue)) {
@@ -2554,8 +2562,7 @@ void stateloop()
       if (otaflag <= 0) {
         otaflag = 12;
         ESPhttpUpdate.rebootOnUpdate(false);
-        // Try multiple times to get the update, in case we have a transient
-        // issue.
+        // Try multiple times to get the update, in case we have a transient issue.
         // e.g. Someone issued "cmnd/sonoffs/update 1" and all the devices
         //      are hammering the OTAURL.
         for (byte i = 0; i < OTA_ATTEMPTS && !otaok; i++) {
