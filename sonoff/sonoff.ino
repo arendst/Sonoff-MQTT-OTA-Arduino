@@ -129,6 +129,10 @@ enum butt_t {PRESSED, NOT_PRESSED};
 #ifdef SEND_TELEMETRY_I2C
   #include <Wire.h>                         // I2C support library
 #endif // SEND_TELEMETRY_I2C
+#ifdef WS2812_LED_SUPPORT                   // WS2812 LED support
+  #include <NeoPixelBus.h>
+  #include <NeoPixelAnimator.h>
+#endif // WD2812_LED_SUPPORT
 
 typedef void (*rtcCallback)();
 
@@ -412,6 +416,10 @@ boolean udpConnected = false;
   byte domoticz_update_flag = 1;
 #endif  // USE_DOMOTICZ
 #endif  // USE_MQTT
+
+#ifdef WS2812_LED_SUPPORT
+  NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod> strip(WS2812_LEDS); // For Esp8266, the Pin is omitted and it uses GPIO3 due to DMA hardware use.
+#endif // WS2812_LED_SUPPORT
 
 /********************************************************************************************/
 
@@ -2870,6 +2878,11 @@ void setup()
 #ifdef SEND_TELEMETRY_I2C
   Wire.begin(I2C_SDA_PIN,I2C_SCL_PIN);
 #endif // SEND_TELEMETRY_I2C
+
+#ifdef WS2812_LED_SUPPORT
+    strip.Begin();
+    strip.Show();
+#endif //WS2812_LED_SUPPORT
 
 #ifdef USE_POWERMONITOR
   hlw_init();

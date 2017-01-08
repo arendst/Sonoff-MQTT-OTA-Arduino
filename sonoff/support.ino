@@ -662,19 +662,6 @@ void wemo_respondToMSearch()
     message, portUDP.remoteIP().toString().c_str(), portUDP.remotePort());
   addLog(LOG_LEVEL_DEBUG, log);
 }
-
-boolean UDP_Connect()
-{
-  boolean state = false;
-
-  if (portUDP.beginMulticast(WiFi.localIP(), ipMulticast, portMulticast)) {
-    addLog_P(LOG_LEVEL_INFO, PSTR("UPnP: Multicast (re)joined"));
-    state = true;
-  } else {
-    addLog_P(LOG_LEVEL_INFO, PSTR("UPnP: Multicast join failed"));
-  }
-  return state;
-}
 #endif  // USE_WEMO_EMULATION
 
 #ifdef USE_HUE_EMULATION
