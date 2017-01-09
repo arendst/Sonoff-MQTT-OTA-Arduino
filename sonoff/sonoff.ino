@@ -130,9 +130,7 @@ enum butt_t {PRESSED, NOT_PRESSED};
   #include <Wire.h>                         // I2C support library
 #endif // SEND_TELEMETRY_I2C
 #ifdef WS2812_LED_SUPPORT                   // WS2812 LED support
-  #include <stdlib.h>
   #include <NeoPixelBus.h>
-//  #include <NeoPixelAnimator.h>
 #endif // WD2812_LED_SUPPORT
 
 typedef void (*rtcCallback)();
