@@ -130,8 +130,9 @@ enum butt_t {PRESSED, NOT_PRESSED};
   #include <Wire.h>                         // I2C support library
 #endif // SEND_TELEMETRY_I2C
 #ifdef WS2812_LED_SUPPORT                   // WS2812 LED support
+  #include <stdlib.h>
   #include <NeoPixelBus.h>
-  #include <NeoPixelAnimator.h>
+//  #include <NeoPixelAnimator.h>
 #endif // WD2812_LED_SUPPORT
 
 typedef void (*rtcCallback)();
@@ -1005,6 +1006,9 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
   char topicBuf[TOPSZ], dataBuf[data_len+1], dataBufUc[MESSZ];
   char *p, *mtopic = NULL, *type = NULL, *devc = NULL;
   char stopic[TOPSZ], stemp1[TOPSZ], stemp2[10];
+#ifdef WS2812_LED_SUPPORT
+  uint16_t ledindex=0;
+#endif // WS2812_LED_SUPPORT
 
   strncpy(topicBuf, topic, sizeof(topicBuf));
   memcpy(dataBuf, data, sizeof(dataBuf));
@@ -1082,12 +1086,18 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
   if (!index) type = NULL;
 
   if (type != NULL) {
-    for(i = 0; i < strlen(type); i++) type[i] = toupper(type[i]);
-    i--;
-    if ((type[i] > '0') && (type[i] < '9')) {
-      index = (int)type[i] - '0';
-      type[i] = '\0';
-    }
+  for(i = 0; i < strlen(type); i++)
+  {
+    type[i] = toupper(type[i]);
+    if(isdigit(type[i])) break;
+  }
+  index = atoi(type+i);
+  type[i] = '\0';
+#ifdef WS2812_LED_SUPPORT
+    ledindex = index;
+    if ((ledindex < 1) || (ledindex > WS2812_LEDS)) ledindex=0;
+#endif // WS2812_LED_SUPPORT
+    if ((index < 1) || (index > Maxdevice)) index = 0;
   }
 
   for(i = 0; i <= sizeof(dataBufUc); i++) dataBufUc[i] = toupper(dataBuf[i]);
@@ -1614,6 +1624,13 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     }
 #endif  // FEATURE_POWER_LIMIT
 #endif  // USE_POWERMONITOR
+#ifdef WS2812_LED_SUPPORT
+    else if (!strcmp(type,"LED")) {
+      snprintf_P(sysCfg.mqtt_subtopic, sizeof(sysCfg.mqtt_subtopic), PSTR("%s"), type);
+      do_cmnd_led(ledindex, data);
+      return;
+    }
+#endif // WS2812_LED_SUPPORT
     else {
       type = NULL;
     }
@@ -1647,8 +1664,10 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
 #ifdef SEND_TELEMETRY_I2C
     snprintf_P(svalue, sizeof(svalue), PSTR("%s, I2CScan"), svalue);
 #endif
+#ifdef WS2812_LED_SUPPORT
+    snprintf_P(svalue, sizeof(svalue), PSTR("%s, LED"), svalue);
+#endif // WS2812_LED_SUPPORT
     snprintf_P(svalue, sizeof(svalue), PSTR("%s\"}"), svalue);
-
 #ifdef USE_POWERMONITOR
     if (sysCfg.message_format != JSON) json2legacy(stopic, svalue);
     mqtt_publish(stopic, svalue);
@@ -1755,6 +1774,19 @@ void do_cmnd_power(byte device, byte state)
   }
   mqtt_publishPowerState(device);
 }
+
+#ifdef WS2812_LED_SUPPORT
+void do_cmnd_led(uint16_t led, byte *colstr)
+{
+  HtmlColor color;
+  uint8_t result = color.Parse<HtmlColorNames>((char *)colstr, 7);
+  if(result)
+  {
+    strip.SetPixelColor(led-1, RgbColor(color)); // Led 1 is strip Led 0 -> substract offset 1
+    strip.Show();
+  }
+}
+#endif // WS2812_LED_SUPPORT
 
 void stop_all_power_blink()
 {
