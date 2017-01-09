@@ -1624,8 +1624,11 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
 #endif  // USE_POWERMONITOR
 #ifdef WS2812_LED_SUPPORT
     else if (!strcmp(type,"LED")) {
-      snprintf_P(sysCfg.mqtt_subtopic, sizeof(sysCfg.mqtt_subtopic), PSTR("%s"), type);
       do_cmnd_led(ledindex, data);
+      return;
+    }
+    else if (!strcmp(type,"STRIP")) {
+      do_cmnd_led(0xFFFF, data);
       return;
     }
 #endif // WS2812_LED_SUPPORT
@@ -1776,11 +1779,17 @@ void do_cmnd_power(byte device, byte state)
 #ifdef WS2812_LED_SUPPORT
 void do_cmnd_led(uint16_t led, byte *colstr)
 {
+	int i=0;
   HtmlColor color;
   uint8_t result = color.Parse<HtmlColorNames>((char *)colstr, 7);
   if(result)
   {
-    strip.SetPixelColor(led-1, RgbColor(color)); // Led 1 is strip Led 0 -> substract offset 1
+		if(0xFFFF == led)
+		{
+      for(i=0;i<WS2812_LEDS;i++)
+        strip.SetPixelColor(i, RgbColor(color));
+		}
+		else strip.SetPixelColor(led-1, RgbColor(color)); // Led 1 is strip Led 0 -> substract offset 1
     strip.Show();
   }
 }
