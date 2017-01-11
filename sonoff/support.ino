@@ -668,24 +668,28 @@ void wemo_respondToMSearch()
 /*********************************************************************************************\
  * Hue Bridge UPNP support routines
 \*********************************************************************************************/
-const char HUE_RESPONSE1[] PROGMEM =
+const char HUE_RESPONSE[] PROGMEM =
   "HTTP/1.1 200 OK\r\n"
-  "CACHE-CONTROL: max-age=86400\r\n"
-  "DATE: Fri, 15 Apr 2016 04:56:29 GMT\r\n"
   "EXT:\r\n"
-  "LOCATION: http://{r1}:80/setup.xml\r\n"
-  "OPT: \"http://schemas.upnp.org/upnp/1/0/\"; ns=01\r\n"
-  "01-NLS: b9200ebb-736d-4b93-bf03-835149d13983\r\n"
-  "SERVER: Unspecified, UPnP/1.0, Unspecified\r\n"
-  "ST: urn:Belkin:device:**\r\n"
-  "USN: uuid:{r2}::urn:Belkin:device:**\r\n"
-  "X-User-Agent: redsonic\r\n"
+  "CACHE-CONTROL: max-age=100\r\n"
+  "LOCATION: http://{r1}:80/description.xml\r\n"
+  "SERVER: FreeRTOS/6.0.5, UPnP/1.0, IpBridge/0.1\r\n"
+  "hue-bridgeid: {r2}\r\n"
+  "ST: upnp:rootdevice\r\n"
+  "USN: uuid:{r3}::upnp:rootdevice\r\n"
   "\r\n";
+
+String hue_bridgeid()
+{
+  char bridgeid[16];
+  snprintf_P(bridgeid, sizeof(bridgeid), PSTR("001788FFFE%03X"), ESP.getChipId());
+  return String(bridgeid);
+}
 
 String hue_serial()
 {
-  char serial[15];
-  snprintf_P(serial, sizeof(serial), PSTR("201612K%07d"), ESP.getChipId());
+  char serial[36];
+  snprintf_P(serial, sizeof(serial), PSTR("f6543a06-800d-48ba-8d8f-bc2949%03X"), ESP.getChipId());
   return String(serial);
 }
 
@@ -701,9 +705,10 @@ void hue_respondToMSearch()
   char message[TOPSZ], log[LOGSZ];
 
   if (portUDP.beginPacket(portUDP.remoteIP(), portUDP.remotePort())) {
-    String response = FPSTR(HUE_RESPONSE1);
+    String response = FPSTR(HUE_RESPONSE);
     response.replace("{r1}", WiFi.localIP().toString());
-    response.replace("{r2}", hue_UUID());
+    response.replace("{r2}", hue_bridgeid());
+    response.replace("{r3}", hue_UUID());
     portUDP.write(response.c_str());
     portUDP.endPacket();
     snprintf_P(message, sizeof(message), PSTR("Response sent"));
