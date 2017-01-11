@@ -535,9 +535,9 @@ void WIFI_Check(uint8_t param)
         } else {
           stopWebserver();
         }
-#ifdef USE_WEMO_EMULATION
+#if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
         if (udpConnected == false) udpConnected = UDP_Connect();
-#endif  // USE_WEMO_EMULATION
+#endif  // USE_WEMO_EMULATION || USE_HUE_EMULATION
 #endif  // USE_WEBSERVER
       } else {
         udpConnected = false;
@@ -742,7 +742,7 @@ void pollUDP()
       int len = portUDP.read(packetBuffer, UDP_BUFFER_SIZE -1);
       if (len > 0) packetBuffer[len] = 0;
       String request = packetBuffer;
-      addLog_P(LOG_LEVEL_DEBUG, packetBuffer);
+//      addLog_P(LOG_LEVEL_DEBUG, packetBuffer);
       if (request.indexOf("M-SEARCH") >= 0) {
 #ifdef USE_WEMO_EMULATION
         if (request.indexOf("urn:Belkin:device:**") > 0) {
