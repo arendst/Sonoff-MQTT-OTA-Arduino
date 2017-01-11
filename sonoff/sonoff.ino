@@ -2957,9 +2957,9 @@ void loop()
 #ifdef USE_WEBSERVER
   pollDnsWeb();
 #endif  // USE_WEBSERVER
-#ifdef USE_WEMO_EMULATION
+#if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
   pollUDP();
-#endif  // USE_WEMO_EMULATION
+#endif  // USE_WEMO_EMULATION || USE_HUE_EMULATION
 
   if (millis() >= timerxs) stateloop();
 
