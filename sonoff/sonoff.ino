@@ -1096,14 +1096,13 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
   if (!index) type = NULL;
 
   if (type != NULL) {
-<<<<<<< HEAD
-  for(i = 0; i < strlen(type); i++)
-  {
-    type[i] = toupper(type[i]);
-    if(isdigit(type[i])) break;
-  }
-  index = atoi(type+i);
-  type[i] = '\0';
+    for(i = 0; i < strlen(type); i++)
+    {
+      type[i] = toupper(type[i]);
+      if(isdigit(type[i])) break;
+    }
+    index = atoi(type+i);
+    type[i] = '\0';
 #ifdef WS2812_LED_SUPPORT
     ledindex = index;
     if ((ledindex < 1) || (ledindex > WS2812_LEDS)) ledindex=0;
