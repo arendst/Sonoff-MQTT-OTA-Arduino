@@ -19,10 +19,9 @@
 #ifdef STA_SSID1
 #undef STA_SSID1
 #endif
-#define STA_SSID1              "krupp.net"
+#define STA_SSID1              ""
 
 #ifdef STA_PASS1
 #undef STA_PASS1
 #endif
-#define STA_PASS1              "***REMOVED***"
-
+#define STA_PASS1              ""
