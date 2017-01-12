@@ -249,6 +249,26 @@ const char WEMO_SETUP_XML[] PROGMEM =
   "</root>\r\n"
   "\r\n";
 #endif  // USE_WEMO_EMULATION
+#ifdef USE_HUE_EMULATION
+const char HUE_DESCRIPTION_XML[] PROGMEM =
+  "<?xml version=\"1.0\"?>"
+  "<root xmlns=\"urn:schemas-upnp-org:device-1-0\">"
+  "<specVersion>"
+      "<major>1</major>"
+      "<minor>0</minor>"
+  "</specVersion>"
+  "<URLBase>http://{x1}/</URLBase>"
+  "<device>"
+      "<deviceType>urn:schemas-upnp-org:device:Basic:1</deviceType>"
+      "<friendlyName>huejack</friendlyName>"
+      "<manufacturer>Royal Philips Electronics</manufacturer>"
+      "<modelName>Philips hue bridge 2012</modelName>"
+      "<modelNumber>929000226503</modelNumber>"
+      "<UDN>uuid:{x2}</UDN>"
+  "</device>"
+  "</root>\r\n"
+  "\r\n";
+#endif  // USE_HUE_EMULATION
 
 #define DNS_PORT 53
 enum http_t {HTTP_OFF, HTTP_USER, HTTP_ADMIN, HTTP_MANAGER};
@@ -294,6 +314,9 @@ void startWebserver(int type, IPAddress ipweb)
       webServer->on("/eventservice.xml", handleUPnPservice);
       webServer->on("/setup.xml", handleUPnPsetup);
 #endif  // USE_WEMO_EMULATION
+#ifdef USE_HUE_EMULATION
+      webServer->on("/description.xml", handleUPnPsetup);
+#endif  // USE_HUE_EMULATION
       webServer->onNotFound(handleNotFound);
     }
     webServer->begin(); // Web server start
@@ -659,7 +682,7 @@ void handleMqtt()
   page.replace("{v}", "Configure MQTT");
   page += FPSTR(HTTP_FORM_MQTT);
   char str[sizeof(sysCfg.mqtt_client)];
-  getClient(str, MQTT_CLIENT_ID, sizeof(sysCfg.mqtt_client));
+  getClient(str, (char*)MQTT_CLIENT_ID, sizeof(sysCfg.mqtt_client));
   page.replace("{m0}", str);
   page.replace("{m1}", String(sysCfg.mqtt_host));
   page.replace("{m2}", String(sysCfg.mqtt_port));
@@ -1272,13 +1295,24 @@ void handleUPnPsetup()
   addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo setup"));
 
   String setup_xml = FPSTR(WEMO_SETUP_XML);
-//  setup_xml.replace("{x1}", String(MQTTClient));
   setup_xml.replace("{x1}", String(sysCfg.friendlyname));
   setup_xml.replace("{x2}", wemo_UUID());
   setup_xml.replace("{x3}", wemo_serial());
   webServer->send(200, "text/xml", setup_xml);
 }
 #endif  // USE_WEMO_EMULATION
+
+#ifdef USE_HUE_EMULATION
+void handleUPnPsetup()
+{
+  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle Hue Bridge setup"));
+
+  String description_xml = FPSTR(HUE_DESCRIPTION_XML);
+  description_xml.replace("{x1}", WiFi.localIP().toString());
+  description_xml.replace("{x2}", hue_serial());
+  webServer->send(200, "text/xml", description_xml);
+}
+#endif  // USE_HUE_EMULATION
 
 void handleNotFound()
 {
@@ -1330,3 +1364,4 @@ boolean isIp(String str)
 }
 
 #endif  // USE_WEBSERVER
+

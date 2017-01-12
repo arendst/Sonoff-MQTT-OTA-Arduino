@@ -15,3 +15,4 @@ void WIFI_wps_status_cb(wps_cb_status status);
 #ifdef __cplusplus
 }
 #endif
+

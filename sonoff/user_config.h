@@ -101,9 +101,11 @@
 
 // -- HTTP -----------------------------------
 #define USE_WEBSERVER                       // Enable web server and wifi manager (+43k code, +2k mem) - Disable by //
+
   #define FRIENDLY_NAME        "Sonoff"     // [FriendlyName] Friendlyname up to 32 characters used by webpages and Alexa
   #define WEB_SERVER           2            // [WebServer] Web server (0 = Off, 1 = Start as User, 2 = Start as Admin)
 //  #define USE_WEMO_EMULATION                // Enable Belkin WeMo PowerSwitch emulation for Alexa (+4k code, +2k mem)
+  #define USE_HUE_EMULATION                 // Enable Hue Bridge emulation for Alexa
 
 // -- mDNS -----------------------------------
 #define USE_DISCOVERY                       // Enable mDNS for the following services (+8k code, +0.3k mem)
@@ -177,7 +179,13 @@
   #define I2C_SDA_PIN          4            // GPIO 04 = I2C SDA (Sonoff_TH10A(16A)- Needs extra hardware)
   #define I2C_SCL_PIN          14           // GPIO 14 = I2C SCL (Sonoff_TH10A(16A))
 //  #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
-
+/*-------------------------------------------------------------------------------------------*\
+ * WD2812 LED Support
+\*-------------------------------------------------------------------------------------------*/
+  #define WS2812_PIN           3            // GPIO 3 Serial RX reused due to DMA controlling of LEDs
+  #define WS2812_LEDS         30            // Number of LEDs
+  #define WS2812_LED_SUPPORT
+  
 /*********************************************************************************************\
  * Sonoff Touch and Sonoff 4CH
  * 
@@ -231,6 +239,12 @@
   #define I2C_SDA_PIN          8            // GPIO 08 = I2C SDA (Sonoff 4CH - Needs extra hardware)
   #define I2C_SCL_PIN          7            // GPIO 07 = I2C SCL (Sonoff 4CH - Needs extra hardware)
 //  #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
+/*-------------------------------------------------------------------------------------------*\
+ * WD2812 LED Support
+\*-------------------------------------------------------------------------------------------*/
+  #define WS2812_PIN           3            // GPIO 3 Serial RX reused due to DMA controlling of LEDs
+  #define WS2812_LEDS         30            // Number of LEDs
+//  #define WS2812_LED_SUPPORT
 
 /*********************************************************************************************\
  * Sonoff Pow
@@ -253,6 +267,12 @@
   #define HLW_CF1              13           // GPIO 13 = HLW8012 CF1 voltage / current (Sonoff Pow)
   #define HLW_CF               14           // GPIO 14 = HLW8012 CF power (Sonoff Pow)
   #define SEND_TELEMETRY_ENERGY             // Enable sending energy telemetry
+/*-------------------------------------------------------------------------------------------*\
+ * WD2812 LED Support
+\*-------------------------------------------------------------------------------------------*/
+  #define WS2812_PIN           3            // GPIO 3 Serial RX reused due to DMA controlling of LEDs
+  #define WS2812_LEDS         30            // Number of LEDs
+//  #define WS2812_LED_SUPPORT
 
 /*********************************************************************************************\
  * Motor Clockwise/Anticlockwise
@@ -314,6 +334,12 @@
   #define I2C_SDA_PIN          4            // GPIO 4 = I2C SDA (Sonoff_TH10A(16A)- Needs extra hardware)
   #define I2C_SCL_PIN          14           // GPIO 14 = I2C SCL (Sonoff_TH10A(16A))
 //  #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
+/*-------------------------------------------------------------------------------------------*\
+ * WD2812 LED Support
+\*-------------------------------------------------------------------------------------------*/
+  #define WS2812_PIN           3            // GPIO 3 Serial RX reused due to DMA controlling of LEDs
+  #define WS2812_LEDS         30            // Number of LEDs
+//  #define WS2812_LED_SUPPORT
 
 /*********************************************************************************************\
  * No user configurable items below
@@ -321,6 +347,10 @@
 
 #else
   #error "Select either module SONOFF, SONOFF_85, SONOFF_POW, MOTOR_CAC or ELECTRO_DRAGON"
+#endif
+
+#if defined(USE_WEMO_EMULATION) && defined(USE_HUE_EMULATION)
+  #error "Select either USE_WEMO_EMULATION or USE_HUE_EMULATION"
 #endif
 
 #if defined(SEND_TELEMETRY_DS18B20) && defined(SEND_TELEMETRY_DS18x20)

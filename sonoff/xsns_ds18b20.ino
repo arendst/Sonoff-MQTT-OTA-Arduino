@@ -168,3 +168,4 @@ boolean dsb_readTemp(bool S, float &t)
   return !isnan(t);
 }
 #endif  // SEND_TELEMETRY_DS18B20
+
