@@ -104,6 +104,7 @@
   #define FRIENDLY_NAME        "Sonoff"     // [FriendlyName] Friendlyname up to 32 characters used by webpages and Alexa
   #define WEB_SERVER           2            // [WebServer] Web server (0 = Off, 1 = Start as User, 2 = Start as Admin)
 //  #define USE_WEMO_EMULATION                // Enable Belkin WeMo PowerSwitch emulation for Alexa (+4k code, +2k mem)
+  #define USE_HUE_EMULATION                 // Enable Hue Bridge emulation for Alexa
 
 // -- mDNS -----------------------------------
 #define USE_DISCOVERY                       // Enable mDNS for the following services (+8k code, +0.3k mem)
@@ -345,6 +346,10 @@
 
 #else
   #error "Select either module SONOFF, SONOFF_85, SONOFF_POW, MOTOR_CAC or ELECTRO_DRAGON"
+#endif
+
+#if defined(USE_WEMO_EMULATION) && defined(USE_HUE_EMULATION)
+  #error "Select either USE_WEMO_EMULATION or USE_HUE_EMULATION"
 #endif
 
 #if defined(SEND_TELEMETRY_DS18B20) && defined(SEND_TELEMETRY_DS18x20)

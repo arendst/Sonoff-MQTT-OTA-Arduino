@@ -381,13 +381,12 @@ uint8_t lastbutton4 = NOT_PRESSED;    // Last button 4 state
 
 boolean mDNSbegun = false;
 boolean udpConnected = false;
-#ifdef USE_WEMO_EMULATION
-  #define WEMO_BUFFER_SIZE 200        // Max UDP buffer size needed for M-SEARCH message
-
-  char packetBuffer[WEMO_BUFFER_SIZE]; // buffer to hold incoming UDP packet
+#if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
+  #define UDP_BUFFER_SIZE 200        // Max UDP buffer size needed for M-SEARCH message
+  char packetBuffer[UDP_BUFFER_SIZE]; // buffer to hold incoming UDP packet
   IPAddress ipMulticast(239, 255, 255, 250); // Simple Service Discovery Protocol (SSDP)
   uint32_t portMulticast = 1900;      // Multicast address and port
-#endif  // USE_WEMO_EMULATION
+#endif  // USE_WEMO_EMULATION || USE_HUE_EMULATION
 
 #ifdef USE_WALL_SWITCH
   uint8_t lastwallswitch;             // Last wall switch state
@@ -2957,9 +2956,9 @@ void loop()
 #ifdef USE_WEBSERVER
   pollDnsWeb();
 #endif  // USE_WEBSERVER
-#ifdef USE_WEMO_EMULATION
+#if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
   pollUDP();
-#endif  // USE_WEMO_EMULATION
+#endif  // USE_WEMO_EMULATION || USE_HUE_EMULATION
 
   if (millis() >= timerxs) stateloop();
 

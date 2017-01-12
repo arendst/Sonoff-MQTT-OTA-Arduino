@@ -535,9 +535,9 @@ void WIFI_Check(uint8_t param)
         } else {
           stopWebserver();
         }
-#ifdef USE_WEMO_EMULATION
+#if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
         if (udpConnected == false) udpConnected = UDP_Connect();
-#endif  // USE_WEMO_EMULATION
+#endif  // USE_WEMO_EMULATION || USE_HUE_EMULATION
 #endif  // USE_WEBSERVER
       } else {
         udpConnected = false;
@@ -662,24 +662,66 @@ void wemo_respondToMSearch()
     message, portUDP.remoteIP().toString().c_str(), portUDP.remotePort());
   addLog(LOG_LEVEL_DEBUG, log);
 }
+#endif  // USE_WEMO_EMULATION
 
-void pollUDP()
+#ifdef USE_HUE_EMULATION
+/*********************************************************************************************\
+ * Hue Bridge UPNP support routines
+\*********************************************************************************************/
+const char HUE_RESPONSE[] PROGMEM =
+  "HTTP/1.1 200 OK\r\n"
+  "EXT:\r\n"
+  "CACHE-CONTROL: max-age=100\r\n"
+  "LOCATION: http://{r1}:80/description.xml\r\n"
+  "SERVER: FreeRTOS/6.0.5, UPnP/1.0, IpBridge/0.1\r\n"
+  "hue-bridgeid: {r2}\r\n"
+  "ST: upnp:rootdevice\r\n"
+  "USN: uuid:{r3}::upnp:rootdevice\r\n"
+  "\r\n";
+
+String hue_bridgeid()
 {
-  if (udpConnected) {
-    if (portUDP.parsePacket()) {
-      int len = portUDP.read(packetBuffer, WEMO_BUFFER_SIZE -1);
-      if (len > 0) packetBuffer[len] = 0;
-      String request = packetBuffer;
-//      addLog_P(LOG_LEVEL_DEBUG, packetBuffer);
-      if (request.indexOf("M-SEARCH") >= 0) {
-        if (request.indexOf("urn:Belkin:device:**") > 0) {
-          wemo_respondToMSearch();
-        }
-      }
-    }
-  }
+  char bridgeid[16];
+  snprintf_P(bridgeid, sizeof(bridgeid), PSTR("001788FFFE%03X"), ESP.getChipId());
+  return String(bridgeid);
 }
 
+String hue_serial()
+{
+  char serial[36];
+  snprintf_P(serial, sizeof(serial), PSTR("f6543a06-800d-48ba-8d8f-bc2949%03X"), ESP.getChipId());
+  return String(serial);
+}
+
+String hue_UUID()
+{
+  char uuid[26];
+  snprintf_P(uuid, sizeof(uuid), PSTR("Socket-1_0-%s"), hue_serial().c_str());
+  return String(uuid);
+}
+
+void hue_respondToMSearch()
+{
+  char message[TOPSZ], log[LOGSZ];
+
+  if (portUDP.beginPacket(portUDP.remoteIP(), portUDP.remotePort())) {
+    String response = FPSTR(HUE_RESPONSE);
+    response.replace("{r1}", WiFi.localIP().toString());
+    response.replace("{r2}", hue_bridgeid());
+    response.replace("{r3}", hue_UUID());
+    portUDP.write(response.c_str());
+    portUDP.endPacket();
+    snprintf_P(message, sizeof(message), PSTR("Response sent"));
+  } else {
+    snprintf_P(message, sizeof(message), PSTR("Failed to send response"));
+  }
+  snprintf_P(log, sizeof(log), PSTR("UPnP: %s to %s:%d"),
+    message, portUDP.remoteIP().toString().c_str(), portUDP.remotePort());
+  addLog(LOG_LEVEL_DEBUG, log);
+}
+#endif  // USE_HUE_EMULATION
+
+#if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
 boolean UDP_Connect()
 {
   boolean state = false;
@@ -692,7 +734,33 @@ boolean UDP_Connect()
   }
   return state;
 }
-#endif  // USE_WEMO_EMULATION
+
+void pollUDP()
+{
+  if (udpConnected) {
+    if (portUDP.parsePacket()) {
+      int len = portUDP.read(packetBuffer, UDP_BUFFER_SIZE -1);
+      if (len > 0) packetBuffer[len] = 0;
+      String request = packetBuffer;
+      addLog_P(LOG_LEVEL_DEBUG_MORE, packetBuffer);
+      if (request.indexOf("M-SEARCH") >= 0) {
+#ifdef USE_WEMO_EMULATION
+        if (request.indexOf("urn:Belkin:device:**") > 0) {
+          wemo_respondToMSearch();
+        }
+#endif // USE_WEMO_EMULATION
+#ifdef USE_HUE_EMULATION
+        if (request.indexOf("ST: urn:schemas-upnp-org:device:basic:1") > 0 ||
+            request.indexOf("ST: upnp:rootdevice") > 0 ||
+            request.indexOf("ST: ssdp:all") > 0) {
+          hue_respondToMSearch();
+        }
+#endif // USE_HUE_EMULATION
+      }
+    }
+  }
+}
+#endif // defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
 
 /*********************************************************************************************\
  * Basic I2C routines
