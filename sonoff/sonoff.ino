@@ -1107,7 +1107,6 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     ledindex = index;
     if ((ledindex < 1) || (ledindex > WS2812_LEDS)) ledindex=0;
 #endif // WS2812_LED_SUPPORT
-    if ((index < 1) || (index > Maxdevice)) index = 0;
   }
 
   for(i = 0; i <= sizeof(dataBufUc); i++) dataBufUc[i] = toupper(dataBuf[i]);
