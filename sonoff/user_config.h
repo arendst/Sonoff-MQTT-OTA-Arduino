@@ -177,6 +177,12 @@
   #define I2C_SDA_PIN          4            // GPIO 04 = I2C SDA (Sonoff_TH10A(16A)- Needs extra hardware)
   #define I2C_SCL_PIN          14           // GPIO 14 = I2C SCL (Sonoff_TH10A(16A))
 //  #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
+/*-------------------------------------------------------------------------------------------*\
+ * WD2812 LED Support
+\*-------------------------------------------------------------------------------------------*/
+  #define WS2812_PIN           3            // GPIO 3 Serial RX reused due to DMA controlling of LEDs
+  #define WS2812_LEDS         30            // Number of LEDs
+  #define WS2812_LED_SUPPORT
 
 /*********************************************************************************************\
  * Sonoff Touch and Sonoff 4CH
@@ -231,6 +237,12 @@
   #define I2C_SDA_PIN          8            // GPIO 08 = I2C SDA (Sonoff 4CH - Needs extra hardware)
   #define I2C_SCL_PIN          7            // GPIO 07 = I2C SCL (Sonoff 4CH - Needs extra hardware)
 //  #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
+/*-------------------------------------------------------------------------------------------*\
+ * WD2812 LED Support
+\*-------------------------------------------------------------------------------------------*/
+  #define WS2812_PIN           3            // GPIO 3 Serial RX reused due to DMA controlling of LEDs
+  #define WS2812_LEDS         30            // Number of LEDs
+  #define WS2812_LED_SUPPORT
 
 /*********************************************************************************************\
  * Sonoff Pow
@@ -253,6 +265,12 @@
   #define HLW_CF1              13           // GPIO 13 = HLW8012 CF1 voltage / current (Sonoff Pow)
   #define HLW_CF               14           // GPIO 14 = HLW8012 CF power (Sonoff Pow)
   #define SEND_TELEMETRY_ENERGY             // Enable sending energy telemetry
+/*-------------------------------------------------------------------------------------------*\
+ * WD2812 LED Support
+\*-------------------------------------------------------------------------------------------*/
+  #define WS2812_PIN           3            // GPIO 3 Serial RX reused due to DMA controlling of LEDs
+  #define WS2812_LEDS         30            // Number of LEDs
+  #define WS2812_LED_SUPPORT
 
 /*********************************************************************************************\
  * Motor Clockwise/Anticlockwise
@@ -314,6 +332,12 @@
   #define I2C_SDA_PIN          4            // GPIO 4 = I2C SDA (Sonoff_TH10A(16A)- Needs extra hardware)
   #define I2C_SCL_PIN          14           // GPIO 14 = I2C SCL (Sonoff_TH10A(16A))
 //  #define SEND_TELEMETRY_I2C                // Enable sending I2C sensor telemetry
+/*-------------------------------------------------------------------------------------------*\
+ * WD2812 LED Support
+\*-------------------------------------------------------------------------------------------*/
+  #define WS2812_PIN           3            // GPIO 3 Serial RX reused due to DMA controlling of LEDs
+  #define WS2812_LEDS         30            // Number of LEDs
+  #define WS2812_LED_SUPPORT
 
 /*********************************************************************************************\
  * No user configurable items below
