@@ -125,7 +125,7 @@
 #define APP_TIMEZONE           1            // [Timezone] +1 hour (Amsterdam) (-12 .. 12 = hours from UTC, 99 = use TIME_DST/TIME_STD)
 #define APP_LEDSTATE           LED_POWER    // [LedState] Function of led (LED_OFF, LED_POWER, LED_MQTTSUB, LED_POWER_MQTTSUB, LED_MQTTPUB, LED_POWER_MQTTPUB, LED_MQTT, LED_POWER_MQTT)
 #define APP_PULSETIME          0            // [PulseTime] Time in 0.1 Sec to turn off power for relay 1 (0 = disabled)
-#define APP_POWERON_STATE      3            // [PowerOnState] Power On Relay state (0 = Off, 1 = On, 2 = Toggle Saved state, 3 = Saved state)
+#define APP_POWERON_STATE      3            // [PowerOnState] Power On Relay state (0 = Off, 1 = On, 2 = Toggle Saved state, 3 = Saved state, 4 = On after power up, else use saved state after a reset etc., 5 = Only toggle saved state after a power on, not a restart)
 #define APP_BLINKTIME          10           // [BlinkTime] Time in 0.1 Sec to blink/toggle power for relay 1
 #define APP_BLINKCOUNT         10           // [BlinkCount] Number of blinks (0 = 32000)
 
