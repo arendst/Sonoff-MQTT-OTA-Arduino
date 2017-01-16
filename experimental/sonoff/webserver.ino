@@ -87,8 +87,8 @@ const char HTTP_HEAD[] PROGMEM =
   "</head>"
   "<body>"
   "<div style='text-align:left;display:inline-block;min-width:260px;'>"
-  "<div style='text-align:center;'><h3>" APP_NAME "</h3><h2>{h}</h2></div>";
-//  "<div style='text-align:center;'><h3>" APP_NAME "</h3><h2>{h}</h2>({ha})</div><br/>";
+  "<div style='text-align:center;'><h3>{h0} Module</h3><h2>{h}</h2></div>";
+//  "<div style='text-align:center;'><h3>{h0} Module</h3><h2>{h}</h2>({ha})</div><br/>";
 const char HTTP_MSG_RSTRT[] PROGMEM =
   "<br/><div style='text-align:center;'>Device will restart in a few seconds</div><br/>";
 const char HTTP_BTN_MENU1[] PROGMEM =
@@ -99,6 +99,7 @@ const char HTTP_BTN_MENU1[] PROGMEM =
 const char HTTP_BTN_RSTRT[] PROGMEM =
   "<br/><form action='/rb' method='post'><button>Restart</button></form>";
 const char HTTP_BTN_MENU2[] PROGMEM =
+  "<br/><form action='/md' method='post'><button>Configure Module</button></form>"
   "<br/><form action='/w0' method='post'><button>Configure WiFi</button></form>"
 #ifdef USE_MQTT
   "<br/><form action='/mq' method='post'><button>Configure MQTT</button></form>"
@@ -113,6 +114,10 @@ const char HTTP_BTN_MAIN[] PROGMEM =
   "<br/><br/><form action='/' method='post'><button>Main menu</button></form>";
 const char HTTP_BTN_CONF[] PROGMEM =
   "<br/><br/><form action='/cn' method='post'><button>Configuration menu</button></form>";
+const char HTTP_FORM_MODULE[] PROGMEM =
+  "<fieldset><legend><b>&nbsp;Module parameters&nbsp;</b></legend><form method='post' action='sv'>"
+  "<input id='w' name='w' value='6' hidden><input id='r' name='r' value='1' hidden>"
+  "<br/><b>Module type</b> ({mt})<br/><select id='mt' name='mt'>";
 const char HTTP_LNK_ITEM[] PROGMEM =
   "<div><a href='#p' onclick='c(this)'>{v}</a>&nbsp;<span class='q {i}'>{r}%</span></div>";
 const char HTTP_LNK_SCAN[] PROGMEM =
@@ -248,66 +253,6 @@ const char WEMO_SETUP_XML[] PROGMEM =
   "</root>\r\n"
   "\r\n";
 #endif  // USE_WEMO_EMULATION
-#ifdef USE_HUE_EMULATION
-const char HUE_DESCRIPTION_XML[] PROGMEM =
-  "<?xml version=\"1.0\"?>"
-  "<root xmlns=\"urn:schemas-upnp-org:device-1-0\">"
-  "<specVersion>"
-      "<major>1</major>"
-      "<minor>0</minor>"
-  "</specVersion>"
-  "<URLBase>http://{x1}/</URLBase>"
-  "<device>"
-      "<deviceType>urn:schemas-upnp-org:device:Basic:1</deviceType>"
-      "<friendlyName>Amazon-Echo-HA-Bridge ({x1})</friendlyName>"
-      "<manufacturer>Royal Philips Electronics</manufacturer>"
-      "<modelName>Philips hue bridge 2012</modelName>"
-      "<modelNumber>929000226503</modelNumber>"
-      "<UDN>uuid:{x2}</UDN>"
-  "</device>"
-  "</root>\r\n"
-  "\r\n";
-
-const char HUE_LIGHTS_JSON[] PROGMEM =
-  "{\"1\":"
-    "{\"state\":"
-      "{\"on\":false,"
-        "\"bri\":0,"
-        "\"hue\":0,"
-        "\"sat\":0,"
-        "\"effect\":\"none\","
-        "\"ct\":0,"
-        "\"alert\":\"none\","
-        "\"reachable\":true"
-      "},"
-      "\"type\":\"Dimmable light\","
-      "\"name\":\"Testlampe1\","
-      "\"modelid\":\"LWB004\","
-      "\"manufacturername\":\"Philips\","
-      "\"uniqueid\":\"00:17:88:5E:D3:01-01\","
-      "\"swversion\":\"66012040\""
-    "},"
-   "\"2\":"
-    "{\"state\":"
-      "{\"on\":false,"
-        "\"bri\":0,"
-        "\"hue\":0,"
-        "\"sat\":0,"
-        "\"effect\":\"none\","
-        "\"ct\":0,"
-        "\"alert\":\"none\","
-        "\"reachable\":true"
-      "},"
-      "\"type\":\"Dimmable light\","
-      "\"name\":\"Testlampe2\","
-      "\"modelid\":\"LWB004\","
-      "\"manufacturername\":\"Philips\","
-      "\"uniqueid\":\"00:17:88:5E:D3:01-02\","
-      "\"swversion\":\"66012040\""
-    "}"
-  "}";
-  
-#endif  // USE_HUE_EMULATION
 
 #define DNS_PORT 53
 enum http_t {HTTP_OFF, HTTP_USER, HTTP_ADMIN, HTTP_MANAGER};
@@ -327,6 +272,7 @@ void startWebserver(int type, IPAddress ipweb)
       webServer = new ESP8266WebServer(80);
       webServer->on("/", handleRoot);
       webServer->on("/cn", handleConfig);
+      webServer->on("/md", handleModule);
       webServer->on("/w1", handleWifi1);
       webServer->on("/w0", handleWifi0);
 #ifdef USE_MQTT
@@ -353,9 +299,6 @@ void startWebserver(int type, IPAddress ipweb)
       webServer->on("/eventservice.xml", handleUPnPservice);
       webServer->on("/setup.xml", handleUPnPsetup);
 #endif  // USE_WEMO_EMULATION
-#ifdef USE_HUE_EMULATION
-      webServer->on("/description.xml", handleUPnPsetup);
-#endif  // USE_HUE_EMULATION
       webServer->onNotFound(handleNotFound);
     }
     webServer->begin(); // Web server start
@@ -408,6 +351,7 @@ void pollDnsWeb()
 
 void showPage(String &page)
 {
+  page.replace("{h0}", my_module.name);
   page.replace("{h}", String(sysCfg.friendlyname));
   page.replace("{ha}", Hostname);
   if (_httpflag == HTTP_MANAGER) {
@@ -468,23 +412,23 @@ void handleRoot()
     }
 
     String tpage = "";
-#ifdef USE_POWERMONITOR
-    tpage += hlw_webPresent();
-#endif  // USE_POWERMONITOR
-#ifdef SEND_TELEMETRY_DS18B20
-    tpage += dsb_webPresent();
-#endif  // SEND_TELEMETRY_DS18B20
-#ifdef SEND_TELEMETRY_DS18x20
-    tpage += ds18x20_webPresent();
-#endif  // SEND_TELEMETRY_DS18x20
-#if defined(SEND_TELEMETRY_DHT) || defined(SEND_TELEMETRY_DHT2)
-    tpage += dht_webPresent();
-#endif  // SEND_TELEMETRY_DHT/2
-#if defined(SEND_TELEMETRY_I2C)
-    tpage += htu_webPresent();
-    tpage += bmp_webPresent();
-    tpage += bh1750_webPresent();
-#endif  // SEND_TELEMETRY_I2C
+    if (hlw_flg) tpage += hlw_webPresent();
+#ifdef USE_DS18B20
+    if (pin[GPIO_DSB] < 99) tpage += dsb_webPresent();
+#endif  // USE_DS18B20
+#ifdef USE_DS18x20
+    if (pin[GPIO_DSB] < 99) page += ds18x20_webPresent();
+#endif  // USE_DS18x20
+#if defined(USE_DHT) || defined(USE_DHT2)
+    if (dht_type) tpage += dht_webPresent();
+#endif  // USE_DHT/2
+#ifdef USE_I2C
+    if (i2c_flg) {
+      tpage += htu_webPresent();
+      tpage += bmp_webPresent();
+      tpage += bh1750_webPresent();
+    }
+#endif  // USE_I2C    
     if (tpage.length() > 0) {
       page += F("<table style='width:100%'>");
       page += tpage;
@@ -497,10 +441,10 @@ void handleRoot()
     }
     showPage(page);
 
-#ifdef SEND_TELEMETRY_DS18x20
+#ifdef USE_DS18x20
     ds18x20_search();      // Check for changes in sensors number
     ds18x20_convert();     // Start Conversion, takes up to one second
-#endif  // SEND_TELEMETRY_DS18x20
+#endif  // USE_DS18x20
   }
 }
 
@@ -516,6 +460,56 @@ void handleConfig()
   page.replace("{v}", "Configuration");
   page += FPSTR(HTTP_BTN_MENU2);
   page += FPSTR(HTTP_BTN_MAIN);
+  showPage(page);
+}
+
+void handleModule()
+{
+  if (_httpflag == HTTP_USER) {
+    handleRoot();
+    return;
+  }
+
+  char stemp[20];
+  
+  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle Module config"));
+
+  String page = FPSTR(HTTP_HEAD);
+  page.replace("{v}", "Config module");
+  page += FPSTR(HTTP_FORM_MODULE);
+
+  snprintf_P(stemp, sizeof(stemp), modules[MODULE].name);
+  page.replace("{mt}", stemp);
+
+  for (byte i = 0; i < MAXMODULE; i++) {
+    page += F("<option ");
+    if (i == sysCfg.module) page += F("selected ");
+    snprintf_P(stemp, sizeof(stemp), modules[i].name);
+    page += F("value='"); page += String(i); page += F("'>"); page += String(i +1); page += F(" "); page += stemp; page += F("</option>");
+  }
+  page += F("</select></br>");
+
+  mytmplt cmodule;
+  memcpy_P(&cmodule, &modules[sysCfg.module], sizeof(cmodule));
+
+  for (byte i = 0; i < MAX_GPIO_PIN; i++) {
+    if (cmodule.gp.io[i] == GPIO_USER) {
+      page += F("<br/><b>GPIO"); page += String(i); page += F("</b> <select id='g"); page += String(i); page += F("' name='g"); page += String(i); page += F("'>");
+      byte k = 0;
+      for (byte j = GPIO_SENSOR_START; j < GPIO_SENSOR_END; j++) {
+        page += F("<option ");
+        if (j == my_module.gp.io[i]) page += F("selected ");
+        page += F("value='"); page += String(j); page += F("'>");
+        page += String(j); page += F(" ");
+        snprintf_P(stemp, sizeof(stemp), sensors[j]);
+        page += stemp;  page += F("</option>");
+      }
+      page += F("</select></br>");
+    }
+  }
+
+  page += FPSTR(HTTP_FORM_END);
+  page += FPSTR(HTTP_BTN_CONF);
   showPage(page);
 }
 
@@ -543,9 +537,7 @@ void handleWifi(boolean scan)
   page.replace("{v}", "Configure Wifi");
 
   if (scan) {
-#ifdef USE_WEMO_EMULATION
-    UDP_Disconnect();  // Needed when WeMo is enabled
-#endif  // USE_WEMO_EMULATION
+    if (udpConnected) WiFiUDP::stopAll();  // Needed when WeMo is enabled
     int n = WiFi.scanNetworks();
     addLog_P(LOG_LEVEL_DEBUG, PSTR("Wifi: Scan done"));
 
@@ -611,6 +603,7 @@ void handleWifi(boolean scan)
       }
       page += "<br/>";
     }
+    udpConnected = false;
   } else {
     page += FPSTR(HTTP_LNK_SCAN);
   }
@@ -772,7 +765,7 @@ void handleSave()
     handleRoot();
     return;
   }
-  char log[LOGSZ];
+  char log[LOGSZ], stemp[20];
   byte what = 0, restart;
   String result = "";
 
@@ -837,6 +830,22 @@ void handleSave()
     strlcpy(sysCfg.friendlyname, (!strlen(webServer->arg("an").c_str())) ? FRIENDLY_NAME : webServer->arg("an").c_str(), sizeof(sysCfg.friendlyname));
     snprintf_P(log, sizeof(log), PSTR("HTTP: Other Friendly Name %s"),
       sysCfg.friendlyname);
+    addLog(LOG_LEVEL_INFO, log);
+    break;
+  case 6:
+    sysCfg.module = (!strlen(webServer->arg("mt").c_str())) ? MODULE : atoi(webServer->arg("mt").c_str());
+    mytmplt cmodule;
+    memcpy_P(&cmodule, &modules[sysCfg.module], sizeof(cmodule));
+    String gpios = "";
+    for (byte i = 0; i < MAX_GPIO_PIN; i++) {
+      if (cmodule.gp.io[i] == GPIO_USER) {
+        snprintf_P(stemp, sizeof(stemp), PSTR("g%d"), i);
+        sysCfg.my_module.gp.io[i] = (!strlen(webServer->arg(stemp).c_str())) ? 0 : atoi(webServer->arg(stemp).c_str());
+        gpios += F(", GPIO"); gpios += String(i); gpios += F(" "); gpios += String(sysCfg.my_module.gp.io[i]);
+      }
+    }
+    snprintf_P(stemp, sizeof(stemp), modules[sysCfg.module].name);
+    snprintf_P(log, sizeof(log), PSTR("HTTP: %s Module%s"), stemp, gpios.c_str());
     addLog(LOG_LEVEL_INFO, log);
     break;
   }
@@ -998,9 +1007,7 @@ void handleUploadLoop()
       _uploaderror = 1;
       return;
     }
-#ifdef USE_WEMO_EMULATION    
-    UDP_Disconnect();  // Needed when WeMo is enabled
-#endif  // USE_WEMO_EMULATION
+    WiFiUDP::stopAll();  // Needed when WeMo is enabled
 #ifdef USE_MQTT
     mqttClient.disconnect();
 #endif  // USE_MQTT
@@ -1266,6 +1273,7 @@ void handleUPnPsetup()
   addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo setup"));
 
   String setup_xml = FPSTR(WEMO_SETUP_XML);
+//  setup_xml.replace("{x1}", String(MQTTClient));
   setup_xml.replace("{x1}", String(sysCfg.friendlyname));
   setup_xml.replace("{x2}", wemo_UUID());
   setup_xml.replace("{x3}", wemo_serial());
@@ -1273,54 +1281,11 @@ void handleUPnPsetup()
 }
 #endif  // USE_WEMO_EMULATION
 
-#ifdef USE_HUE_EMULATION
-void handleUPnPsetup()
-{
-  addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle Hue Bridge setup"));
-
-  String description_xml = FPSTR(HUE_DESCRIPTION_XML);
-  description_xml.replace("{x1}", WiFi.localIP().toString());
-  description_xml.replace("{x2}", hue_UUID());
-  webServer->send(200, "text/xml", description_xml);
-}
-
-void handle_hue_api(String path)
-{
-  /* HUE API uses /api/<userid>/<command> syntax. The userid is created by the echo device and
-   * on original HUE the pressed button allows for creation of this user. We simply ignore the
-   * user part and allow every caller as with Web or WeMo. */
-   
-  char log[LOGSZ];
-  String response = FPSTR(HUE_LIGHTS_JSON);
-  path.remove(0,5);                 // remove "/api/"
-  path.remove(0,path.indexOf("/")); // remove second component (normally userid)
-  if (path.indexOf("/lights") >= 0)
-  {
-    webServer->send(200, "application/json", response);
-  }
-  else if (path.indexOf("/lights/1/status") >= 0)
-  {
-    webServer->send(200, "application/json", response);
-  }
-  
-  snprintf_P(log, sizeof(log), PSTR("HTTP: Handle Hue API (%s)"),path.c_str());
-  addLog(LOG_LEVEL_DEBUG_MORE, log);
-}
-#endif  // USE_HUE_EMULATION
-
 void handleNotFound()
 {
   if (captivePortal()) { // If captive portal redirect instead of displaying the error page.
     return;
   }
-
-#ifdef USE_HUE_EMULATION  
-  String path = webServer->uri();
-  if (path.indexOf("/api") >= 0)
-    handle_hue_api(path);
-  else {
-#endif // USE_HUE_EMULATION
-
   String message = "File Not Found\n\n";
   message += "URI: ";
   message += webServer->uri();
@@ -1337,10 +1302,6 @@ void handleNotFound()
   webServer->sendHeader("Pragma", "no-cache");
   webServer->sendHeader("Expires", "-1");
   webServer->send(404, "text/plain", message);
-  addLog_P(LOG_LEVEL_DEBUG_MORE, message.c_str());
-#ifdef USE_HUE_EMULATION
-  }
-#endif // USE_HUE_EMULATION
 }
 
 /* Redirect to captive portal if we got a request for another domain. Return true in that case so the page handler do not try to handle the request again. */

@@ -1,5 +1,8 @@
-/* 3.2.3 20170116
- * Fix Wemo when MQTT is disabled
+/* 3.2.2a
+ * Add dynamic (Sonoff) Module, user GPIO and sensor selection (one size fits (almost) all)
+ * Add support for Sonoff LED
+ * Add Seriallog disable after 600 seconds for Sonoff Dual and 4 Channel
+ * Add ButtonTopic2 - 4, SwitchTopic1 - 4 and SwitchRetain
  *
  * 3.2.2 20170113
  * Fix PowerOnState 2 functionality after re-applying power (#230)

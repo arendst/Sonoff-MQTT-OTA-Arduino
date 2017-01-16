@@ -375,9 +375,7 @@ void WIFI_config(uint8_t type)
 {
   if (!_wificonfigflag) {
     if (type == WIFI_RETRY) return;
-#ifdef USE_WEMO_EMULATION
-    UDP_Disconnect();
-#endif  // USE_WEMO_EMULATION
+    if (udpConnected) WiFiUDP::stopAll();
     WiFi.disconnect();        // Solve possible Wifi hangs
     _wificonfigflag = type;
     _wifiConfigCounter = WIFI_CONFIG_SEC;   // Allow up to WIFI_CONFIG_SECS seconds for phone to provide ssid/pswd
@@ -412,9 +410,7 @@ void WIFI_begin(uint8_t flag)
   const char PhyMode[] = " BGN";
   char log[LOGSZ];
 
-#ifdef USE_WEMO_EMULATION
-  UDP_Disconnect();
-#endif  // USE_WEMO_EMULATION
+  if (udpConnected) WiFiUDP::stopAll();
   if (!strncmp(ESP.getSdkVersion(),"1.5.3",5)) {
     addLog_P(LOG_LEVEL_DEBUG, "Wifi: Patch issue 2186");
     WiFi.mode(WIFI_OFF);    // See https://github.com/esp8266/Arduino/issues/2186
@@ -539,14 +535,12 @@ void WIFI_Check(uint8_t param)
         } else {
           stopWebserver();
         }
-#if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
-        UDP_Connect();
-#endif  // USE_WEMO_EMULATION || USE_HUE_EMULATION
+#ifdef USE_WEMO_EMULATION
+        if (udpConnected == false) udpConnected = UDP_Connect();
+#endif  // USE_WEMO_EMULATION
 #endif  // USE_WEBSERVER
       } else {
-#ifdef USE_WEMO_EMULATION
-        UDP_Disconnect();
-#endif  // USE_WEMO_EMULATION
+        udpConnected = false;
         mDNSbegun = false;
       }
     }
@@ -664,160 +658,47 @@ void wemo_respondToMSearch()
   } else {
     snprintf_P(message, sizeof(message), PSTR("Failed to send response"));
   }
-  snprintf_P(log, sizeof(log), PSTR("UPnP: Wemo %s to %s:%d"),
+  snprintf_P(log, sizeof(log), PSTR("UPnP: %s to %s:%d"),
     message, portUDP.remoteIP().toString().c_str(), portUDP.remotePort());
   addLog(LOG_LEVEL_DEBUG, log);
-}
-#endif  // USE_WEMO_EMULATION
-
-#ifdef USE_HUE_EMULATION
-/*********************************************************************************************\
- * Hue Bridge UPNP support routines
- * Need to send 3 response packets with varying ST and USN
-\*********************************************************************************************/
-const char HUE_RESPONSE[] PROGMEM =
-  "HTTP/1.0 200 OK\r\n"
-  "HOST: 239.255.255.250:1900\r\n"
-  "CACHE-CONTROL: max-age=100\r\n"
-  "EXT:\r\n"
-  "LOCATION: http://{r1}:80/description.xml\r\n"
-  "SERVER: FreeRTOS/7.4.2 UPnP/1.0 IpBridge/1.15.0\r\n"
-  "hue-bridgeid: {r2}\r\n";
-const char HUE_ST1[] PROGMEM = 
-  "ST: upnp:rootdevice\r\n";
-const char HUE_USN1[] PROGMEM =
-  "USN: uuid:{r3}::upnp:rootdevice\r\n"
-  "\r\n";
-
-const char HUE_ST2[] PROGMEM =
-  "ST: uuid:{r3}\r\n";
-const char HUE_USN2[] PROGMEM =
-  "USN: uuid:{r3}\r\n"
-  "\r\n";
-
-const char HUE_ST3[] PROGMEM =
-  "ST: urn:schemas-upnp-org:device:basic:1\r\n";
-  
-String hue_bridgeid()
-{
-  char bridgeid[16];
-  snprintf_P(bridgeid, sizeof(bridgeid), PSTR("5CCF7FFFFE%03X"), ESP.getChipId());
-  return String(bridgeid);
-}
-
-String hue_UUID()
-{
-  char serial[36];
-  snprintf_P(serial, sizeof(serial), PSTR("f6543a06-da50-11ba-8d8f-5ccf7f%03x"), ESP.getChipId());
-  return String(serial);
-}
-
-void hue_respondToMSearch()
-{
-  char message[TOPSZ], log[LOGSZ];
-
-  if (portUDP.beginPacket(portUDP.remoteIP(), portUDP.remotePort())) {
-    String response = FPSTR(HUE_RESPONSE);
-    String response_st=FPSTR(HUE_ST1);
-    String response_usn=FPSTR(HUE_USN1);
-    response += response_st + response_usn;
-    response.replace("{r1}", WiFi.localIP().toString());
-    response.replace("{r2}", hue_bridgeid());
-    response.replace("{r3}", hue_UUID());
-    portUDP.write(response.c_str());
-    portUDP.endPacket();
-    snprintf_P(message, sizeof(message), PSTR("Response1 sent"));
-    addLog(LOG_LEVEL_DEBUG_MORE, response.c_str());
-    
-    response = FPSTR(HUE_RESPONSE);
-    response_st=FPSTR(HUE_ST2);
-    response_usn=FPSTR(HUE_USN2);
-    response += response_st + response_usn;
-    response.replace("{r1}", WiFi.localIP().toString());
-    response.replace("{r2}", hue_bridgeid());
-    response.replace("{r3}", hue_UUID());
-    portUDP.write(response.c_str());
-    portUDP.endPacket();
-    snprintf_P(message, sizeof(message), PSTR("Response2 sent"));
-    addLog(LOG_LEVEL_DEBUG_MORE, response.c_str());
-    
-    response = FPSTR(HUE_RESPONSE);
-    response_st=FPSTR(HUE_ST3);
-    response += response_st + response_usn;
-    response.replace("{r1}", WiFi.localIP().toString());
-    response.replace("{r2}", hue_bridgeid());
-    response.replace("{r3}", hue_UUID());
-    portUDP.write(response.c_str());
-    portUDP.endPacket();
-    snprintf_P(message, sizeof(message), PSTR("Response3 sent"));
-    addLog(LOG_LEVEL_DEBUG_MORE, response.c_str());
-
-  } else {
-    snprintf_P(message, sizeof(message), PSTR("Failed to send response"));
-  }
-  snprintf_P(log, sizeof(log), PSTR("UPnP: HUE %s to %s:%d"),
-    message, portUDP.remoteIP().toString().c_str(), portUDP.remotePort());
-  addLog(LOG_LEVEL_DEBUG, log);
-}
-#endif  // USE_HUE_EMULATION
-
-#if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
-boolean UDP_Disconnect()
-{
-  if (udpConnected) {
-    WiFiUDP::stopAll();
-    addLog_P(LOG_LEVEL_DEBUG, PSTR("UPnP: Multicast disabled"));
-    udpConnected = false;
-  }
-  return udpConnected;
-}
-
-boolean UDP_Connect()
-{
-  if (!udpConnected) {
-    if (portUDP.beginMulticast(WiFi.localIP(), ipMulticast, portMulticast)) {
-      addLog_P(LOG_LEVEL_INFO, PSTR("UPnP: Multicast (re)joined"));
-      udpConnected = true;
-    } else {
-      addLog_P(LOG_LEVEL_INFO, PSTR("UPnP: Multicast join failed"));
-      udpConnected = false;
-    }
-  }
-  return udpConnected;
 }
 
 void pollUDP()
 {
   if (udpConnected) {
     if (portUDP.parsePacket()) {
-      int len = portUDP.read(packetBuffer, UDP_BUFFER_SIZE -1);
+      int len = portUDP.read(packetBuffer, WEMO_BUFFER_SIZE -1);
       if (len > 0) packetBuffer[len] = 0;
       String request = packetBuffer;
-      addLog_P(LOG_LEVEL_DEBUG_MORE, packetBuffer);
+//      addLog_P(LOG_LEVEL_DEBUG, packetBuffer);
       if (request.indexOf("M-SEARCH") >= 0) {
-#ifdef USE_WEMO_EMULATION
         if (request.indexOf("urn:Belkin:device:**") > 0) {
           wemo_respondToMSearch();
         }
-#endif // USE_WEMO_EMULATION
-#ifdef USE_HUE_EMULATION
-        if (request.indexOf("ST: urn:schemas-upnp-org:device:basic:1") > 0 ||
-            request.indexOf("ST: upnp:rootdevice") > 0 ||
-            request.indexOf("ST: ssdp:all") > 0) {
-          hue_respondToMSearch();
-        }
-#endif // USE_HUE_EMULATION
       }
     }
   }
 }
-#endif // defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
+
+boolean UDP_Connect()
+{
+  boolean state = false;
+
+  if (portUDP.beginMulticast(WiFi.localIP(), ipMulticast, portMulticast)) {
+    addLog_P(LOG_LEVEL_INFO, PSTR("UPnP: Multicast (re)joined"));
+    state = true;
+  } else {
+    addLog_P(LOG_LEVEL_INFO, PSTR("UPnP: Multicast join failed"));
+  }
+  return state;
+}
+#endif  // USE_WEMO_EMULATION
 
 /*********************************************************************************************\
  * Basic I2C routines
 \*********************************************************************************************/
 
-#ifdef SEND_TELEMETRY_I2C
+#ifdef USE_I2C
 #define I2C_RETRY_COUNTER 3
 
 int32_t i2c_read(uint8_t addr, uint8_t reg, uint8_t size)
@@ -911,7 +792,7 @@ void i2c_scan(char *devs, unsigned int devs_len)
     snprintf_P(devs, devs_len, PSTR("{\"I2Cscan\":\"No devices found\"}"));
   }
 }
-#endif //SEND_TELEMETRY_I2C
+#endif  // USE_I2C
 
 /*********************************************************************************************\
  * Real Time Clock
