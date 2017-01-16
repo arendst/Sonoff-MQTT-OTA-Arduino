@@ -259,7 +259,7 @@ const char HUE_DESCRIPTION_XML[] PROGMEM =
   "<URLBase>http://{x1}/</URLBase>"
   "<device>"
       "<deviceType>urn:schemas-upnp-org:device:Basic:1</deviceType>"
-      "<friendlyName>huejack</friendlyName>"
+      "<friendlyName>Amazon-Echo-HA-Bridge ({x1})</friendlyName>"
       "<manufacturer>Royal Philips Electronics</manufacturer>"
       "<modelName>Philips hue bridge 2012</modelName>"
       "<modelNumber>929000226503</modelNumber>"
@@ -267,6 +267,46 @@ const char HUE_DESCRIPTION_XML[] PROGMEM =
   "</device>"
   "</root>\r\n"
   "\r\n";
+
+const char HUE_LIGHTS_JSON[] PROGMEM =
+  "{\"1\":"
+    "{\"state\":"
+      "{\"on\":false,"
+        "\"bri\":0,"
+        "\"hue\":0,"
+        "\"sat\":0,"
+        "\"effect\":\"none\","
+        "\"ct\":0,"
+        "\"alert\":\"none\","
+        "\"reachable\":true"
+      "},"
+      "\"type\":\"Dimmable light\","
+      "\"name\":\"Testlampe1\","
+      "\"modelid\":\"LWB004\","
+      "\"manufacturername\":\"Philips\","
+      "\"uniqueid\":\"00:17:88:5E:D3:01-01\","
+      "\"swversion\":\"66012040\""
+    "},"
+   "\"2\":"
+    "{\"state\":"
+      "{\"on\":false,"
+        "\"bri\":0,"
+        "\"hue\":0,"
+        "\"sat\":0,"
+        "\"effect\":\"none\","
+        "\"ct\":0,"
+        "\"alert\":\"none\","
+        "\"reachable\":true"
+      "},"
+      "\"type\":\"Dimmable light\","
+      "\"name\":\"Testlampe2\","
+      "\"modelid\":\"LWB004\","
+      "\"manufacturername\":\"Philips\","
+      "\"uniqueid\":\"00:17:88:5E:D3:01-02\","
+      "\"swversion\":\"66012040\""
+    "}"
+  "}";
+  
 #endif  // USE_HUE_EMULATION
 
 #define DNS_PORT 53
@@ -1237,8 +1277,31 @@ void handleUPnPsetup()
 
   String description_xml = FPSTR(HUE_DESCRIPTION_XML);
   description_xml.replace("{x1}", WiFi.localIP().toString());
-  description_xml.replace("{x2}", hue_serial());
+  description_xml.replace("{x2}", hue_UUID());
   webServer->send(200, "text/xml", description_xml);
+}
+
+void handle_hue_api(String path)
+{
+  /* HUE API uses /api/<userid>/<command> syntax. The userid is created by the echo device and
+   * on original HUE the pressed button allows for creation of this user. We simply ignore the
+   * user part and allow every caller as with Web or WeMo. */
+   
+  char log[LOGSZ];
+  String response = FPSTR(HUE_LIGHTS_JSON);
+  path.remove(0,5);                 // remove "/api/"
+  path.remove(0,path.indexOf("/")); // remove second component (normally userid)
+  if (path.indexOf("/lights") >= 0)
+  {
+    webServer->send(200, "application/json", response);
+  }
+  else if (path.indexOf("/lights/1/status") >= 0)
+  {
+    webServer->send(200, "application/json", response);
+  }
+  
+  snprintf_P(log, sizeof(log), PSTR("HTTP: Handle Hue API (%s)"),path.c_str());
+  addLog(LOG_LEVEL_DEBUG_MORE, log);
 }
 #endif  // USE_HUE_EMULATION
 
@@ -1247,6 +1310,14 @@ void handleNotFound()
   if (captivePortal()) { // If captive portal redirect instead of displaying the error page.
     return;
   }
+
+#ifdef USE_HUE_EMULATION  
+  String path = webServer->uri();
+  if (path.indexOf("/api") >= 0)
+    handle_hue_api(path);
+  else {
+#endif // USE_HUE_EMULATION
+
   String message = "File Not Found\n\n";
   message += "URI: ";
   message += webServer->uri();
@@ -1263,6 +1334,10 @@ void handleNotFound()
   webServer->sendHeader("Pragma", "no-cache");
   webServer->sendHeader("Expires", "-1");
   webServer->send(404, "text/plain", message);
+  addLog_P(LOG_LEVEL_DEBUG_MORE, message.c_str());
+#ifdef USE_HUE_EMULATION
+  }
+#endif // USE_HUE_EMULATION
 }
 
 /* Redirect to captive portal if we got a request for another domain. Return true in that case so the page handler do not try to handle the request again. */
