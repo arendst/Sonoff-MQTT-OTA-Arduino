@@ -1324,14 +1324,14 @@ void handle_hue_api(String path)
     {
       String json=webServer->arg(0);
       Serial.println(json.c_str());
-      if (json.startsWith("{\"on\":false"))
+      if (json.startsWith("{\"on\": false"))
       {
         do_cmnd_power(device, 0);
-        response +="/state/on\":false}}";
+        response +="/state/on\": false}}";
       } else
       {
         do_cmnd_power(device, 1);
-        response +="/state/on\":true}}";        
+        response +="/state/on\": true}}";        
       }
       webServer->send(200, "application/json", response);
     }
