@@ -268,43 +268,23 @@ const char HUE_DESCRIPTION_XML[] PROGMEM =
   "</root>\r\n"
   "\r\n";
 
-const char HUE_LIGHTS_JSON[] PROGMEM =
-  "{\"1\":"
-    "{\"state\":"
+const char HUE_LIGHT_STATUS_JSON[] PROGMEM =
+  "{\"state\":"
       "{\"on\":false,"
-        "\"bri\":0,"
-        "\"hue\":0,"
-        "\"sat\":0,"
-        "\"effect\":\"none\","
-        "\"ct\":0,"
-        "\"alert\":\"none\","
-        "\"reachable\":true"
-      "},"
-      "\"type\":\"Dimmable light\","
-      "\"name\":\"Testlampe1\","
-      "\"modelid\":\"LWB004\","
-      "\"manufacturername\":\"Philips\","
-      "\"uniqueid\":\"00:17:88:5E:D3:01-01\","
-      "\"swversion\":\"66012040\""
-    "},"
-   "\"2\":"
-    "{\"state\":"
-      "{\"on\":false,"
-        "\"bri\":0,"
-        "\"hue\":0,"
-        "\"sat\":0,"
-        "\"effect\":\"none\","
-        "\"ct\":0,"
-        "\"alert\":\"none\","
-        "\"reachable\":true"
-      "},"
-      "\"type\":\"Dimmable light\","
-      "\"name\":\"Testlampe2\","
-      "\"modelid\":\"LWB004\","
-      "\"manufacturername\":\"Philips\","
-      "\"uniqueid\":\"00:17:88:5E:D3:01-02\","
-      "\"swversion\":\"66012040\""
-    "}"
+      "\"bri\":0,"
+      "\"hue\":0,"
+      "\"sat\":0,"
+      "\"effect\":\"none\","
+      "\"ct\":0,"
+      "\"alert\":\"none\","
+      "\"reachable\":true"
+  "},"
+  "\"type\":\"Dimmable light\","
+  "\"name\":\"{j1}{j2}\","
+  "\"modelid\":\"LWB004\","
+  "\"manufacturername\":\"Philips\","
+  "\"uniqueid\":\"{j3}\","
+  "\"swversion\":\"66012040\""
   "}";
   
 #endif  // USE_HUE_EMULATION
@@ -1274,6 +1254,13 @@ void handleUPnPsetup()
 #endif  // USE_WEMO_EMULATION
 
 #ifdef USE_HUE_EMULATION
+String hue_deviceId(uint8_t id)
+{
+  char deviceid[16];
+  snprintf_P(deviceid, sizeof(deviceid), PSTR("5CCF7F%03X-%0d"), ESP.getChipId(), id);
+  return String(deviceid);
+}
+
 void handleUPnPsetup()
 {
   addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle Hue Bridge setup"));
@@ -1291,20 +1278,54 @@ void handle_hue_api(String path)
    * user part and allow every caller as with Web or WeMo. */
    
   char log[LOGSZ];
-  String response = FPSTR(HUE_LIGHTS_JSON);
-  path.remove(0,5);                 // remove "/api/"
-  path.remove(0,path.indexOf("/")); // remove second component (normally userid)
-  if (path.indexOf("/lights") >= 0)
-  {
-    webServer->send(200, "application/json", response);
-  }
-  else if (path.indexOf("/lights/1/status") >= 0)
-  {
-    webServer->send(200, "application/json", response);
-  }
+  String response = "{\"";
+  String command=path;
+  uint8_t device=0;
+
+  command.remove(0,command.indexOf("/lights")+7); // remove all including lights cmd
   
-  snprintf_P(log, sizeof(log), PSTR("HTTP: Handle Hue API (%s)"),path.c_str());
-  addLog(LOG_LEVEL_DEBUG_MORE, log);
+  if (path.indexOf("/api/invalid") >= 0) {} // Ignore /api/invalid
+  else if (command.length() == 0)           // only /lights requested
+  {
+    Serial.println("HUE: /lights");
+    
+    for(uint8_t i=1; i<=Maxdevice; i++)
+    {
+      char id[4];
+      response += i;
+      response += "\":";
+      response += FPSTR(HUE_LIGHT_STATUS_JSON);
+      if(i<Maxdevice) response += ",\"";
+      response.replace("{j1}", sysCfg.friendlyname);
+      response.replace("{j2}", itoa(i,id,10));
+      response.replace("{j3}", hue_deviceId(i));  
+    }
+    response += "}";
+    webServer->send(200, "application/json", response);    
+  }
+  else if (command.length() <=3)            // Only device ID (up to 63 on real Bridge)
+  {
+    device=atoi(command.c_str()+1);         // Skip leading '/'
+    Serial.print("HUE: Get state of device "); Serial.println(device);
+    response="{\"success\":{\"/lights/";
+    response +=device;
+    response +="/state/on\":false}}";
+    webServer->send(200, "application/json", response);
+  }
+  else if (command.length() > 3)              // Got ID/command
+  {
+    Serial.print("HUE: Set state of device "); Serial.println(command.c_str());
+    for (uint8_t i = 0; i < webServer->args(); i++) {
+      Serial.print(webServer->argName(i)); Serial.print(": ");
+      Serial.println(webServer->arg(i));
+    }
+    webServer->send(200, "application/json", response);
+  }
+  else
+  {
+    snprintf_P(log, sizeof(log), PSTR("HTTP: Handle Hue API (%s)"),path.c_str());
+    addLog(LOG_LEVEL_DEBUG_MORE, log);
+  }
 }
 #endif  // USE_HUE_EMULATION
 
