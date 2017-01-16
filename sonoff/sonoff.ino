@@ -382,7 +382,7 @@ uint8_t lastbutton4 = NOT_PRESSED;    // Last button 4 state
 boolean mDNSbegun = false;
 boolean udpConnected = false;
 #if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
-  #define UDP_BUFFER_SIZE 200        // Max UDP buffer size needed for M-SEARCH message
+  #define UDP_BUFFER_SIZE 200         // Max UDP buffer size needed for M-SEARCH message
   char packetBuffer[UDP_BUFFER_SIZE]; // buffer to hold incoming UDP packet
   IPAddress ipMulticast(239, 255, 255, 250); // Simple Service Discovery Protocol (SSDP)
   uint32_t portMulticast = 1900;      // Multicast address and port

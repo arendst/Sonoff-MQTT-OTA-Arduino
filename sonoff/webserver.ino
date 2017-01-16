@@ -270,7 +270,7 @@ const char HUE_DESCRIPTION_XML[] PROGMEM =
 
 const char HUE_LIGHT_STATUS_JSON[] PROGMEM =
   "{\"state\":"
-      "{\"on\":false,"
+      "{\"on\":{state},"
       "\"bri\":0,"
       "\"hue\":0,"
       "\"sat\":0,"
@@ -286,7 +286,6 @@ const char HUE_LIGHT_STATUS_JSON[] PROGMEM =
   "\"uniqueid\":\"{j3}\","
   "\"swversion\":\"66012040\""
   "}";
-  
 #endif  // USE_HUE_EMULATION
 
 #define DNS_PORT 53
@@ -417,7 +416,7 @@ void handleRoot()
   } else {
 
     String page = FPSTR(HTTP_HEAD);
-//    page.replace("<meta", "<meta http-equiv=\"refresh\" content=\"4; URL=/\"><meta");                    // Fails Edge (asks for reload)
+//    page.replace("<meta", "<meta http-equiv=\"refresh\" content=\"4; URL=/\"><meta");                   // Fails Edge (asks for reload)
 //    page.replace("</script>", "setTimeout(function(){window.location.reload(1);},4000);</script>");     // Repeats POST on All
     page.replace("</script>", "setTimeout(function(){window.location.replace(\"/\");},4000);</script>");  // OK on All
     page.replace("{v}", "Main menu");
@@ -1249,7 +1248,7 @@ void handleUPnPsetup()
   setup_xml.replace("{x1}", String(sysCfg.friendlyname));
   setup_xml.replace("{x2}", wemo_UUID());
   setup_xml.replace("{x3}", wemo_serial());
-  webServer->send(200, "text/xml", setup_xml);
+  webServer->send(200, "text/plain", setup_xml);
 }
 #endif  // USE_WEMO_EMULATION
 
@@ -1278,24 +1277,24 @@ void handle_hue_api(String path)
    * user part and allow every caller as with Web or WeMo. */
    
   char log[LOGSZ];
-  String response = "{\"";
+  String response;
   String command=path;
-  uint8_t device=0;
+  uint8_t device=1;
+  char id[4];
 
   command.remove(0,command.indexOf("/lights")+7); // remove all including lights cmd
-  
-  if (path.indexOf("/api/invalid") >= 0) {} // Ignore /api/invalid
-  else if (command.length() == 0)           // only /lights requested
+  if (path.startsWith("/api/invalid")) {}         // Ignore /api/invalid
+  else if (command.length() == 0)                 // only /lights requested
   {
-    Serial.println("HUE: /lights");
-    
+//    Serial.println("HUE: /lights");
+    response = "{\"";
     for(uint8_t i=1; i<=Maxdevice; i++)
     {
-      char id[4];
       response += i;
       response += "\":";
       response += FPSTR(HUE_LIGHT_STATUS_JSON);
       if(i<Maxdevice) response += ",\"";
+      response.replace("{state}", (power & (0x01 << (i-1))) ? "true" : "false");
       response.replace("{j1}", sysCfg.friendlyname);
       response.replace("{j2}", itoa(i,id,10));
       response.replace("{j3}", hue_deviceId(i));  
@@ -1303,28 +1302,50 @@ void handle_hue_api(String path)
     response += "}";
     webServer->send(200, "application/json", response);    
   }
-  else if (command.length() <=3)            // Only device ID (up to 63 on real Bridge)
+  else if (command.length() <=3)                  // Only device ID (up to 63 on real Bridge)
   {
-    device=atoi(command.c_str()+1);         // Skip leading '/'
-    Serial.print("HUE: Get state of device "); Serial.println(device);
-    response="{\"success\":{\"/lights/";
-    response +=device;
-    response +="/state/on\":false}}";
+    device=atoi(command.c_str()+1);               // Skip leading '/'
+    response = FPSTR(HUE_LIGHT_STATUS_JSON);
+    response.replace("{state}", (power & (0x01 << (device-1))) ? "true" : "false");
+    response.replace("{j1}", sysCfg.friendlyname);
+    response.replace("{j2}", itoa(device,id,10));
+    response.replace("{j3}", hue_deviceId(device));
+//    Serial.print("HUE: Get state of device "); Serial.println(device);
     webServer->send(200, "application/json", response);
   }
-  else if (command.length() > 3)              // Got ID/command
+  else if (command.endsWith("/state"))            // Got ID/state
   {
-    Serial.print("HUE: Set state of device "); Serial.println(command.c_str());
-    for (uint8_t i = 0; i < webServer->args(); i++) {
-      Serial.print(webServer->argName(i)); Serial.print(": ");
-      Serial.println(webServer->arg(i));
+//    Serial.println("HUE: Handle API /state");
+    command.remove(command.lastIndexOf("/state"));
+    device=atoi(command.c_str()+1);
+    response="{\"success\":{\"/lights/";
+    response +=device;
+    if (webServer->args() == 1)
+    {
+      String json=webServer->arg(0);
+      Serial.println(json.c_str());
+      if (json.startsWith("{\"on\":false"))
+      {
+        do_cmnd_power(device, 0);
+        response +="/state/on\":false}}";
+      } else
+      {
+        do_cmnd_power(device, 1);
+        response +="/state/on\":true}}";        
+      }
+      webServer->send(200, "application/json", response);
     }
-    webServer->send(200, "application/json", response);
+    else 
+    {
+//      Serial.println("HUE: /state no POST args");
+      webServer->send(406, "application/json", "{}");
+    }
   }
   else
   {
     snprintf_P(log, sizeof(log), PSTR("HTTP: Handle Hue API (%s)"),path.c_str());
     addLog(LOG_LEVEL_DEBUG_MORE, log);
+    webServer->send(406, "application/json", "{}");
   }
 }
 #endif  // USE_HUE_EMULATION
@@ -1337,7 +1358,7 @@ void handleNotFound()
 
 #ifdef USE_HUE_EMULATION  
   String path = webServer->uri();
-  if (path.indexOf("/api") >= 0)
+  if (path.startsWith("/api"))
     handle_hue_api(path);
   else {
 #endif // USE_HUE_EMULATION
