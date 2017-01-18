@@ -1768,7 +1768,6 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     snprintf_P(svalue, sizeof(svalue), PSTR("%s, I2CScan"), svalue);
 #endif
     snprintf_P(svalue, sizeof(svalue), PSTR("%s\"}"), svalue);
-
 #ifdef USE_POWERMONITOR
     if (sysCfg.message_format != JSON) json2legacy(stopic, svalue);
     mqtt_publish(stopic, svalue);
@@ -2708,7 +2707,6 @@ void loop()
 #ifdef USE_WEBSERVER
   pollDnsWeb();
 #endif  // USE_WEBSERVER
-
 #if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
   pollUDP();
 #endif  // USE_WEMO_EMULATION || USE_HUE_EMULATION
