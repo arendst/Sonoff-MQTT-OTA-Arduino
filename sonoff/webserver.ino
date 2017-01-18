@@ -522,9 +522,9 @@ void handleWifi(boolean scan)
   page.replace("{v}", "Configure Wifi");
 
   if (scan) {
-#ifdef USE_WEMO_EMULATION
-    UDP_Disconnect();  // Needed when WeMo is enabled
-#endif  // USE_WEMO_EMULATION
+#if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
+    UDP_Disconnect();
+#endif  // USE_WEMO_EMULATION || USE_HUE_EMULATION
     int n = WiFi.scanNetworks();
     addLog_P(LOG_LEVEL_DEBUG, PSTR("Wifi: Scan done"));
 
@@ -977,9 +977,9 @@ void handleUploadLoop()
       _uploaderror = 1;
       return;
     }
-#ifdef USE_WEMO_EMULATION    
-    UDP_Disconnect();  // Needed when WeMo is enabled
-#endif  // USE_WEMO_EMULATION
+#if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
+    UDP_Disconnect();
+#endif  // USE_WEMO_EMULATION || USE_HUE_EMULATION
 #ifdef USE_MQTT
     mqttClient.disconnect();
 #endif  // USE_MQTT
@@ -1221,6 +1221,8 @@ void handleRestart()
   restartflag = 2;
 }
 
+/********************************************************************************************/
+
 #ifdef USE_WEMO_EMULATION
 void handleUPnPevent()
 {
@@ -1251,6 +1253,8 @@ void handleUPnPsetup()
   webServer->send(200, "text/plain", setup_xml);
 }
 #endif  // USE_WEMO_EMULATION
+
+/********************************************************************************************/
 
 #ifdef USE_HUE_EMULATION
 String hue_deviceId(uint8_t id)
@@ -1350,6 +1354,8 @@ void handle_hue_api(String path)
 }
 #endif  // USE_HUE_EMULATION
 
+/********************************************************************************************/
+
 void handleNotFound()
 {
   if (captivePortal()) { // If captive portal redirect instead of displaying the error page.
@@ -1362,7 +1368,7 @@ void handleNotFound()
     handle_hue_api(path);
   else {
 #endif // USE_HUE_EMULATION
-
+  
   String message = "File Not Found\n\n";
   message += "URI: ";
   message += webServer->uri();
@@ -1379,8 +1385,8 @@ void handleNotFound()
   webServer->sendHeader("Pragma", "no-cache");
   webServer->sendHeader("Expires", "-1");
   webServer->send(404, "text/plain", message);
-  addLog_P(LOG_LEVEL_DEBUG_MORE, message.c_str());
 #ifdef USE_HUE_EMULATION
+  addLog_P(LOG_LEVEL_DEBUG_MORE, message.c_str());
   }
 #endif // USE_HUE_EMULATION
 }

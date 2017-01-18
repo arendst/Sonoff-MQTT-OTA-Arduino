@@ -10,7 +10,7 @@
  * ====================================================
 */
 
-#define VERSION                0x03020300   // 3.2.3
+#define VERSION                0x03020400   // 3.2.4
 
 #define SONOFF                 1            // Sonoff, Sonoff RF, Sonoff SV, Sonoff Dual, Sonoff TH, S20 Smart Socket, 4 Channel
 #define SONOFF_POW             9            // Sonoff Pow
@@ -295,6 +295,17 @@ struct SYSCFG {
   uint16_t      blinktime;
   uint16_t      blinkcount;
 
+  uint16_t      ws_pixels;
+  uint8_t       ws_red;
+  uint8_t       ws_green;
+  uint8_t       ws_blue;
+  uint8_t       ws_ledtable;
+  uint8_t       ws_dimmer;
+  uint8_t       ws_fade;
+  uint8_t       ws_speed;
+  uint8_t       ws_scheme;
+  uint8_t       ws_width;
+  uint16_t      ws_wakeup;  
 } sysCfg;
 
 struct TIME_T {
@@ -380,13 +391,6 @@ uint8_t lastbutton3 = NOT_PRESSED;    // Last button 3 state
 uint8_t lastbutton4 = NOT_PRESSED;    // Last button 4 state
 
 boolean mDNSbegun = false;
-boolean udpConnected = false;
-#if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
-  #define UDP_BUFFER_SIZE 200         // Max UDP buffer size needed for M-SEARCH message
-  char packetBuffer[UDP_BUFFER_SIZE]; // buffer to hold incoming UDP packet
-  IPAddress ipMulticast(239, 255, 255, 250); // Simple Service Discovery Protocol (SSDP)
-  uint32_t portMulticast = 1900;      // Multicast address and port
-#endif  // USE_WEMO_EMULATION || USE_HUE_EMULATION
 
 #ifdef USE_WALL_SWITCH
   uint8_t lastwallswitch;             // Last wall switch state
@@ -507,6 +511,19 @@ void CFG_DefaultSet()
   sysCfg.hlw_msplw = SAFE_POWER_WINDOW;
   sysCfg.hlw_mkwh = 0;                             // MaxEnergy
   sysCfg.hlw_mkwhs = 0;                            // MaxEnergyStart
+
+  sysCfg.ws_pixels = WS2812_LEDS;
+  sysCfg.ws_red = 255;
+  sysCfg.ws_green = 0;
+  sysCfg.ws_blue = 0;
+  sysCfg.ws_ledtable = 0;
+  sysCfg.ws_dimmer = 8;
+  sysCfg.ws_fade = 0;
+  sysCfg.ws_speed = 1;
+  sysCfg.ws_scheme = 1;
+  sysCfg.ws_width = 1;
+  sysCfg.ws_wakeup = 0;
+ 
 }
 
 void CFG_Default()
@@ -645,6 +662,19 @@ void CFG_Delta()
     }
     if (sysCfg.version < 0x03011000) {  // 3.1.16 - Add parameter
       getClient(sysCfg.friendlyname, sysCfg.mqtt_client, sizeof(sysCfg.friendlyname));
+    }
+    if (sysCfg.version < 0x03020400) {  // 3.2.4 - Add parameter
+      sysCfg.ws_pixels = WS2812_LEDS;
+      sysCfg.ws_red = 255;
+      sysCfg.ws_green = 0;
+      sysCfg.ws_blue = 0;
+      sysCfg.ws_ledtable = 0;
+      sysCfg.ws_dimmer = 8;
+      sysCfg.ws_fade = 0;
+      sysCfg.ws_speed = 1;
+      sysCfg.ws_scheme = 1;
+      sysCfg.ws_width = 1;
+      sysCfg.ws_wakeup = 0;
     }
 
     sysCfg.version = VERSION;
@@ -940,9 +970,9 @@ void mqtt_reconnect()
   mqttcounter = MQTT_RETRY_SECS;
 
 #ifdef USE_MQTT
-#ifdef USE_WEMO_EMULATION
+#if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
   UDP_Disconnect();
-#endif  // USE_WEMO_EMULATION
+#endif  // USE_WEMO_EMULATION || USE_HUE_EMULATION
   if (mqttflag > 1) {
 #ifdef USE_MQTT_TLS
     addLog_P(LOG_LEVEL_INFO, PSTR("MQTT: Verify TLS fingerprint..."));
@@ -1640,16 +1670,85 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     }
 #endif  // FEATURE_POWER_LIMIT
 #endif  // USE_POWERMONITOR
-#ifdef WS2812_LED_SUPPORT
+
+#ifdef USE_WS2812
+    else if (!strcmp(type,"PIXELS")) {
+      if ((data_len > 0) && (payload > 0) && (payload < 1024)) {
+        sysCfg.ws_pixels = payload;
+        ws2812_pixels();
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"Pixels\":%d}"), sysCfg.ws_pixels);
+    }
+
+    else if (!strcmp(type,"COLOR")) {
+      if (data_len == 6) {
+        ws2812_setColor(dataBufUc);
+      }
+      ws2812_getColor(svalue, sizeof(svalue));
+    }
+    else if (!strcmp(type,"DIMMER")) {
+      if ((data_len > 0) && (payload >= 0) && (payload <= 100)) {
+        sysCfg.ws_dimmer = payload;
+        power = 1;
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"Dimmer\":%d}"), sysCfg.ws_dimmer);
+    }
+    else if (!strcmp(type,"LEDTABLE")) {
+      if ((data_len > 0) && (payload >= 0) && (payload <= 2)) {
+        switch (payload) {
+        case 0: // Off
+        case 1: // On
+          sysCfg.ws_ledtable = payload;
+          break;
+        case 2: // Toggle
+          sysCfg.ws_ledtable ^= 1;
+          break;
+        }
+        ws2812_update();
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"LedTable\":\"%s\"}"), (sysCfg.ws_ledtable) ? MQTT_STATUS_ON : MQTT_STATUS_OFF);
+    }
+    else if (!strcmp(type,"FADE")) {
+      if ((data_len > 0) && (payload >= 0) && (payload <= 2)) {
+        switch (payload) {
+        case 0: // Off
+        case 1: // On
+          sysCfg.ws_fade = payload;
+          break;
+        case 2: // Toggle
+          sysCfg.ws_fade ^= 1;
+          break;
+        }
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"Fade\":\"%s\"}"), (sysCfg.ws_fade) ? MQTT_STATUS_ON : MQTT_STATUS_OFF);
+    }
+    else if (!strcmp(type,"SPEED")) {  // 0 - none, 1 - slow, 4 - fast
+      if ((data_len > 0) && (payload >= 0) && (payload <= 4)) {
+        sysCfg.ws_speed = payload;
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"Speed\":%d}"), sysCfg.ws_speed);
+    }
+    else if (!strcmp(type,"SCHEME")) {
+      if ((data_len > 0) && (payload >= 0) && (payload <= 1)) {
+        sysCfg.ws_scheme = payload;
+/*
+        if (sysCfg.scheme == 1) {
+          wakeupDimmer = 0;
+          wakeupCntr = 0;
+        }
+*/        
+        power = 1;
+//        stripTimerCntr = 0;
+      }
+      snprintf_P(svalue, sizeof(svalue), PSTR("{\"Scheme\":%d}"), sysCfg.ws_scheme);
+    }
+    
     else if (!strcmp(type,"LED")) {
-      do_cmnd_led(ledindex, data);
+      do_cmnd_led(index, data);
       return;
     }
-    else if (!strcmp(type,"STRIP")) {
-      do_cmnd_led(0xFFFF, data);
-      return;
-    }
-#endif // WS2812_LED_SUPPORT
+#endif  // USE_WS2812
+>>>>>>> 9937f36dfbe11840217de142741e92911869e9d0
     else {
       type = NULL;
     }
@@ -2198,6 +2297,10 @@ void stateloop()
     }
   }
 
+#ifdef USE_WS2812
+  ws2812_animate();
+#endif  // USE_WS2812
+
   if ((sysCfg.model >= SONOFF_DUAL) && (sysCfg.model <= CHANNEL_4)) {
     if (ButtonCode) {
       snprintf_P(log, sizeof(log), PSTR("APP: Button code %04X"), ButtonCode);
@@ -2622,10 +2725,9 @@ void setup()
   Wire.begin(I2C_SDA_PIN,I2C_SCL_PIN);
 #endif // SEND_TELEMETRY_I2C
 
-#ifdef WS2812_LED_SUPPORT
-    strip.Begin();
-    strip.Show();
-#endif //WS2812_LED_SUPPORT
+#ifdef USE_WS2812
+  ws2812_init();
+#endif  // USE_WS2812
 
 #ifdef USE_POWERMONITOR
   hlw_init();
