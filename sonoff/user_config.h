@@ -181,7 +181,7 @@
 /*-------------------------------------------------------------------------------------------*\
  * WS2812 LED Support
 \*-------------------------------------------------------------------------------------------*/
-  #define WS2812_PIN           14           // GPIO 3 Serial RX reused due to DMA controlling of LEDs
+  #define WS2812_PIN            3           // GPIO 3 Serial RX reused due to DMA controlling of LEDs
   #define WS2812_LEDS          30           // Number of LEDs
   #define USE_WS2812
 

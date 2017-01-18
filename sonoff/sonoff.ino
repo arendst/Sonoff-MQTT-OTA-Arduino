@@ -129,9 +129,6 @@ enum butt_t {PRESSED, NOT_PRESSED};
 #ifdef SEND_TELEMETRY_I2C
   #include <Wire.h>                         // I2C support library
 #endif // SEND_TELEMETRY_I2C
-#ifdef WS2812_LED_SUPPORT                   // WS2812 LED support
-  #include <NeoPixelBus.h>
-#endif // WD2812_LED_SUPPORT
 
 typedef void (*rtcCallback)();
 
@@ -418,10 +415,6 @@ boolean mDNSbegun = false;
   byte domoticz_update_flag = 1;
 #endif  // USE_DOMOTICZ
 #endif  // USE_MQTT
-
-#ifdef WS2812_LED_SUPPORT
-  NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod> strip(WS2812_LEDS); // For Esp8266, the Pin is omitted and it uses GPIO3 due to DMA hardware use.
-#endif // WS2812_LED_SUPPORT
 
 /********************************************************************************************/
 
@@ -1037,9 +1030,6 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
   char topicBuf[TOPSZ], dataBuf[data_len+1], dataBufUc[MESSZ];
   char *p, *mtopic = NULL, *type = NULL, *devc = NULL;
   char stopic[TOPSZ], stemp1[TOPSZ], stemp2[10];
-#ifdef WS2812_LED_SUPPORT
-  uint16_t ledindex=0;
-#endif // WS2812_LED_SUPPORT
 
   strncpy(topicBuf, topic, sizeof(topicBuf));
   memcpy(dataBuf, data, sizeof(dataBuf));
@@ -1134,10 +1124,6 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
       }
     }
     type[i] = '\0';
-#ifdef WS2812_LED_SUPPORT
-    ledindex = index;
-    if ((ledindex < 1) || (ledindex > WS2812_LEDS)) ledindex=0;
-#endif // WS2812_LED_SUPPORT
   }
 
   for(i = 0; i <= sizeof(dataBufUc); i++) dataBufUc[i] = toupper(dataBuf[i]);
@@ -1782,10 +1768,6 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     snprintf_P(svalue, sizeof(svalue), PSTR("%s, I2CScan"), svalue);
 #endif
     snprintf_P(svalue, sizeof(svalue), PSTR("%s\"}"), svalue);
-#ifdef WS2812_LED_SUPPORT
-    snprintf_P(svalue, sizeof(svalue), PSTR("%s, LED"), svalue);
-    snprintf_P(svalue, sizeof(svalue), PSTR("%s, STRIP"), svalue);
-#endif // WS2812_LED_SUPPORT
 #ifdef USE_POWERMONITOR
     if (sysCfg.message_format != JSON) json2legacy(stopic, svalue);
     mqtt_publish(stopic, svalue);
@@ -1892,25 +1874,6 @@ void do_cmnd_power(byte device, byte state)
   }
   mqtt_publishPowerState(device);
 }
-
-#ifdef WS2812_LED_SUPPORT
-void do_cmnd_led(uint16_t led, byte *colstr)
-{
-  int i=0;
-  HtmlColor color;
-  uint8_t result = color.Parse<HtmlColorNames>((char *)colstr, 7);
-  if(result)
-  {
-    if(0xFFFF == led)
-    {
-      for(i=0;i<WS2812_LEDS;i++)
-        strip.SetPixelColor(i, RgbColor(color));
-    }
-    else strip.SetPixelColor(led-1, RgbColor(color)); // Led 1 is strip Led 0 -> substract offset 1
-    strip.Show();
-  }
-}
-#endif // WS2812_LED_SUPPORT
 
 void stop_all_power_blink()
 {
