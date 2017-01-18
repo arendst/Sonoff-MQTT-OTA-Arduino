@@ -1748,7 +1748,6 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
       return;
     }
 #endif  // USE_WS2812
->>>>>>> 9937f36dfbe11840217de142741e92911869e9d0
     else {
       type = NULL;
     }
