@@ -1176,13 +1176,6 @@ void handleInfo()
 //  page += F("<fieldset><legend><b>&nbsp;Information&nbsp;</b></legend>");
   page += F("<style>td{padding:0px 5px;}</style>");
   page += F("<table style'width:100%;'>");
-<<<<<<< HEAD
-  page += F("<tr><td><b>Friendly name</b></td><td>"); page += String(sysCfg.friendlyname[0]); page += F("</td></tr>");
-  page += F("<tr><td><b>Friendly name 2</b></td><td>"); page += String(sysCfg.friendlyname[1]); page += F("</td></tr>");
-  page += F("<tr><td><b>Friendly name 3</b></td><td>"); page += String(sysCfg.friendlyname[2]); page += F("</td></tr>");
-  page += F("<tr><td><b>Friendly name 4</b></td><td>"); page += String(sysCfg.friendlyname[3]); page += F("</td></tr>");
-=======
->>>>>>> 456927f1ec466d4f7db3e9dad6fb6e048f52bced
   page += F("<tr><td><b>Program version</b></td><td>"); page += Version; page += F("</td></tr>");
   page += F("<tr><td><b>Core/SDK version</b></td><td>"); page += ESP.getCoreVersion(); page += F("/"); page += String(ESP.getSdkVersion()); page += F("</td></tr>");
 //  page += F("<tr><td><b>Boot version</b></td><td>"); page += String(ESP.getBootVersion()); page += F("</td></tr>");
