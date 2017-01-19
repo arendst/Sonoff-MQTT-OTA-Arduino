@@ -164,7 +164,10 @@ const char HTTP_FORM_LOG3[] PROGMEM =
 const char HTTP_FORM_OTHER[] PROGMEM =
   "<fieldset><legend><b>&nbsp;Other parameters&nbsp;</b></legend><form method='post' action='sv'>"
   "<input id='w' name='w' value='5' hidden><input id='r' name='r' value='0' hidden>"
-  "<br/><b>Friendly Name</b> (" FRIENDLY_NAME ")<br/><input id='an' name='an' length=32 placeholder='" FRIENDLY_NAME" ' value='{a1}'><br/>";
+  "<br/><b>Friendly Name</b> (" FRIENDLY_NAME ")<br/><input id='an' name='an' length=32 placeholder='" FRIENDLY_NAME" ' value='{a1}'><br/>"
+  "<br/><b>Friendly Name 2</b> (" FRIENDLY_NAME2 ")<br/><input id='an' name='ao' length=32 placeholder='" FRIENDLY_NAME2" ' value='{a2}'><br/>"
+  "<br/><b>Friendly Name 3</b> (" FRIENDLY_NAME3 ")<br/><input id='an' name='ap' length=32 placeholder='" FRIENDLY_NAME3" ' value='{a3}'><br/>"
+  "<br/><b>Friendly Name 4</b> (" FRIENDLY_NAME4 ")<br/><input id='an' name='aq' length=32 placeholder='" FRIENDLY_NAME4" ' value='{a4}'><br/>";   
 const char HTTP_FORM_END[] PROGMEM =
   "<br/><button type='submit'>Save</button></form></fieldset>";
 const char HTTP_FORM_UPG[] PROGMEM =
@@ -280,10 +283,10 @@ const char HUE_LIGHT_STATUS_JSON[] PROGMEM =
       "\"reachable\":true"
   "},"
   "\"type\":\"Dimmable light\","
-  "\"name\":\"{j1}{j2}\","
+  "\"name\":\"{j1}\","
   "\"modelid\":\"LWB004\","
   "\"manufacturername\":\"Philips\","
-  "\"uniqueid\":\"{j3}\","
+  "\"uniqueid\":\"{j2}\","
   "\"swversion\":\"66012040\""
   "}";
 #endif  // USE_HUE_EMULATION
@@ -387,7 +390,7 @@ void pollDnsWeb()
 
 void showPage(String &page)
 {
-  page.replace("{h}", String(sysCfg.friendlyname));
+  page.replace("{h}", String(sysCfg.friendlyname[0]));
   page.replace("{ha}", Hostname);
   if (_httpflag == HTTP_MANAGER) {
     if (WIFI_configCounter()) {
@@ -739,7 +742,10 @@ void handleOther()
   String page = FPSTR(HTTP_HEAD);
   page.replace("{v}", "Configure Other");
   page += FPSTR(HTTP_FORM_OTHER);
-  page.replace("{a1}", String(sysCfg.friendlyname));
+  page.replace("{a1}", String(sysCfg.friendlyname[0]));
+  page.replace("{a2}", String(sysCfg.friendlyname[1]));
+  page.replace("{a3}", String(sysCfg.friendlyname[2]));
+  page.replace("{a4}", String(sysCfg.friendlyname[3]));
   page += FPSTR(HTTP_FORM_END);
   page += FPSTR(HTTP_BTN_CONF);
   showPage(page);
@@ -813,9 +819,12 @@ void handleSave()
 #endif  // USE_DOMOTICZ
 #endif  // USE_MQTT
   case 5:
-    strlcpy(sysCfg.friendlyname, (!strlen(webServer->arg("an").c_str())) ? FRIENDLY_NAME : webServer->arg("an").c_str(), sizeof(sysCfg.friendlyname));
-    snprintf_P(log, sizeof(log), PSTR("HTTP: Other Friendly Name %s"),
-      sysCfg.friendlyname);
+    strlcpy(sysCfg.friendlyname[0], (!strlen(webServer->arg("an").c_str())) ? FRIENDLY_NAME : webServer->arg("an").c_str(), sizeof(sysCfg.friendlyname[0]));
+    strlcpy(sysCfg.friendlyname[1], (!strlen(webServer->arg("ao").c_str())) ? FRIENDLY_NAME2 : webServer->arg("ao").c_str(), sizeof(sysCfg.friendlyname[1]));
+    strlcpy(sysCfg.friendlyname[2], (!strlen(webServer->arg("ap").c_str())) ? FRIENDLY_NAME3 : webServer->arg("ap").c_str(), sizeof(sysCfg.friendlyname[2]));
+    strlcpy(sysCfg.friendlyname[3], (!strlen(webServer->arg("aq").c_str())) ? FRIENDLY_NAME4 : webServer->arg("aq").c_str(), sizeof(sysCfg.friendlyname[3]));
+    snprintf_P(log, sizeof(log), PSTR("HTTP: Other Friendly Names %s %s %s %s"),
+      sysCfg.friendlyname[0], sysCfg.friendlyname[1], sysCfg.friendlyname[2], sysCfg.friendlyname[3]);
     addLog(LOG_LEVEL_INFO, log);
     break;
   }
@@ -1152,7 +1161,10 @@ void handleInfo()
 //  page += F("<fieldset><legend><b>&nbsp;Information&nbsp;</b></legend>");
   page += F("<style>td{padding:0px 5px;}</style>");
   page += F("<table style'width:100%;'>");
-  page += F("<tr><td><b>Friendly name</b></td><td>"); page += String(sysCfg.friendlyname); page += F("</td></tr>");
+  page += F("<tr><td><b>Friendly name</b></td><td>"); page += String(sysCfg.friendlyname[0]); page += F("</td></tr>");
+  page += F("<tr><td><b>Friendly name 2</b></td><td>"); page += String(sysCfg.friendlyname[1]); page += F("</td></tr>");
+  page += F("<tr><td><b>Friendly name 3</b></td><td>"); page += String(sysCfg.friendlyname[2]); page += F("</td></tr>");
+  page += F("<tr><td><b>Friendly name 4</b></td><td>"); page += String(sysCfg.friendlyname[3]); page += F("</td></tr>");
   page += F("<tr><td><b>Program version</b></td><td>"); page += Version; page += F("</td></tr>");
   page += F("<tr><td><b>Core/SDK version</b></td><td>"); page += ESP.getCoreVersion(); page += F("/"); page += String(ESP.getSdkVersion()); page += F("</td></tr>");
 //  page += F("<tr><td><b>Boot version</b></td><td>"); page += String(ESP.getBootVersion()); page += F("</td></tr>");
@@ -1247,7 +1259,7 @@ void handleUPnPsetup()
   addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo setup"));
 
   String setup_xml = FPSTR(WEMO_SETUP_XML);
-  setup_xml.replace("{x1}", String(sysCfg.friendlyname));
+  setup_xml.replace("{x1}", String(sysCfg.friendlyname[0]));
   setup_xml.replace("{x2}", wemo_UUID());
   setup_xml.replace("{x3}", wemo_serial());
   webServer->send(200, "text/plain", setup_xml);
@@ -1299,9 +1311,8 @@ void handle_hue_api(String path)
       response += FPSTR(HUE_LIGHT_STATUS_JSON);
       if(i<Maxdevice) response += ",\"";
       response.replace("{state}", (power & (0x01 << (i-1))) ? "true" : "false");
-      response.replace("{j1}", sysCfg.friendlyname);
-      response.replace("{j2}", itoa(i,id,10));
-      response.replace("{j3}", hue_deviceId(i));  
+      response.replace("{j1}", sysCfg.friendlyname[i-1]);
+      response.replace("{j2}", hue_deviceId(i));  
     }
     response += "}";
     webServer->send(200, "application/json", response);    
@@ -1311,9 +1322,8 @@ void handle_hue_api(String path)
     device=atoi(command.c_str()+1);               // Skip leading '/'
     response = FPSTR(HUE_LIGHT_STATUS_JSON);
     response.replace("{state}", (power & (0x01 << (device-1))) ? "true" : "false");
-    response.replace("{j1}", sysCfg.friendlyname);
-    response.replace("{j2}", itoa(device,id,10));
-    response.replace("{j3}", hue_deviceId(device));
+    response.replace("{j1}", sysCfg.friendlyname[device-1]);
+    response.replace("{j2}", hue_deviceId(device));
 //    Serial.print("HUE: Get state of device "); Serial.println(device);
     webServer->send(200, "application/json", response);
   }

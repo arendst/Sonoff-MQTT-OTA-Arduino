@@ -11,15 +11,15 @@
 \*****************************************************************************************************/
 
 // Examples
-//#ifdef CFG_HOLDER
-//#undef CFG_HOLDER
-//#endif
-//#define CFG_HOLDER             0x20161210
+#ifdef CFG_HOLDER
+#undef CFG_HOLDER
+#endif
+#define CFG_HOLDER             0x20170101
 
 #ifdef STA_SSID1
 #undef STA_SSID1
 #endif
-#define STA_SSID1              "krupp.net"
+#define STA_SSID1              "TU-KL_guest"
 
 #ifdef STA_PASS1
 #undef STA_PASS1
