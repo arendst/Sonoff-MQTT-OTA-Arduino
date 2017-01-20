@@ -1317,6 +1317,10 @@ void handle_hue_api(String path)
 
   command.remove(0, command.indexOf("/lights") +7); // remove all including lights cmd
   if (path.startsWith("/api/invalid")) {}           // Ignore /api/invalid
+  else if (path.endsWith("/config"))                // Config request
+  {
+    
+  }
   else if (command.length() == 0) {                 // only /lights requested
 //    Serial.println("HUE: /lights");
     response = "{\"";

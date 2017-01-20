@@ -19,7 +19,7 @@
 #ifdef STA_SSID1
 #undef STA_SSID1
 #endif
-#define STA_SSID1              "krupp.net"
+#define STA_SSID1              "TU-KL_guest"
 
 #ifdef STA_PASS1
 #undef STA_PASS1
