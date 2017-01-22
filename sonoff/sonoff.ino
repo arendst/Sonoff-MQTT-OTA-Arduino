@@ -1176,7 +1176,7 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     }
 #if (MODULE != MOTOR_CAC)
     else if (!strcmp(type,"POWERONSTATE")) {
-      if ((data_len > 0) && (payload >= 0) && (payload <= 3)) {
+      if ((data_len > 0) && (payload >= 0) && (payload <= 5)) {
         sysCfg.poweronstate = payload;
       }
       snprintf_P(svalue, sizeof(svalue), PSTR("{\"PowerOnState\":%d}"), sysCfg.poweronstate);
@@ -1821,7 +1821,7 @@ void send_button_power(byte device, byte state)
   snprintf_P(stemp1, sizeof(stemp1), PSTR("%d"), device);
   snprintf_P(stopic, sizeof(stopic), PSTR("%s/%s/%s%s"),
     SUB_PREFIX, sysCfg.mqtt_topic2, sysCfg.mqtt_subtopic, (Maxdevice > 1) ? stemp1 : "");
-  
+
   if (state == 3) {
     svalue[0] = '\0';
   } else {
@@ -2688,11 +2688,11 @@ void setup()
     power = 0;
     setRelay(power);
   }
-  else if (sysCfg.poweronstate == 1) {  // All on
+  else if (sysCfg.poweronstate == 1 || (sysCfg.poweronstate == 4 && ESP.getResetReason() == "Power on")) {  // All on
     power = ((0x00FF << Maxdevice) >> 8);
     setRelay(power);
   }
-  else if (sysCfg.poweronstate == 2) {  // All saved state toggle
+  else if (sysCfg.poweronstate == 2 || (sysCfg.poweronstate == 5 && ESP.getResetReason() == "Power on")) {  // All saved state toggle
     power = (sysCfg.power & ((0x00FF << Maxdevice) >> 8)) ^ 0xFF;
     if (sysCfg.savestate) setRelay(power);
   }
