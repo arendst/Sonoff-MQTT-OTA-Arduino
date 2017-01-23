@@ -140,7 +140,8 @@
   #define USE_HTU                                // Add I2C code for HTU21 sensor
 
 #define USE_WS2812                               // WS2812 Led string support (+8k code, +1k mem)
-#define USE_WS2812_DMA                           // Using DMA only GPIO03 (= Serial TXD) is supported (+1k mem)
+  #define USE_WS2812_DMA                         // Using DMA only GPIO03 (= Serial TXD) is supported (+1k mem)
+                                                 //   When USE_WS2812_DMA is enabled expect Exceptions on Pow
 
 /*********************************************************************************************\
  * No user configurable items below
@@ -149,4 +150,3 @@
 #if defined(USE_WEMO_EMULATION) && defined(USE_HUE_EMULATION)
   #error "Select either USE_WEMO_EMULATION or USE_HUE_EMULATION"
 #endif
-
