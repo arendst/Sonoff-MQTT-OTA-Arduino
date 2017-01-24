@@ -35,8 +35,9 @@ POSSIBILITY OF SUCH DAMAGE.
 #define STR(x) STR_HELPER(x)
 
 const char HTTP_HEAD[] PROGMEM =
-  "<!DOCTYPE html><html lang=\"en\">"
+  "<!DOCTYPE html><html lang=\"en\" class=\"\">"
   "<head>"
+  "<meta charset='utf-8'>"
   "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,user-scalable=no\"/>"
   "<title>{v}</title>"
   "<script>"
@@ -1319,7 +1320,7 @@ void hue_lights(String path)
   char id[4];
 
   path.remove(0,path.indexOf("/lights"));                 // Remove until /lights
-  if(path.endsWith("/lights"))                            // Got /lights
+  if (path.endsWith("/lights"))                           // Got /lights
   {
     response = "{\"";
     for (uint8_t i = 1; i <= Maxdevice; i++)
@@ -1335,7 +1336,7 @@ void hue_lights(String path)
     response += "}";
     webServer->send(200, "application/json", response);
   }
-  else if(path.endsWith("/state"))                          // Got ID/state
+  else if (path.endsWith("/state"))                         // Got ID/state
   {
     path.remove(0,8);                                       // Remove /lights/
     path.remove(path.indexOf("/state"));                    // Remove /state
@@ -1391,7 +1392,6 @@ void handle_hue_api(String path)
    * user part and allow every caller as with Web or WeMo. 
    *
    * (c) Heiko Krupp, 2017
-   *
    */
    
   char log[LOGSZ];
