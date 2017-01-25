@@ -184,7 +184,7 @@
 //  #define WS2812_PIN           3            // GPIO 03 Serial RX reused due to DMA controlling of LEDs (Fails Serial communication!)
   #define WS2812_PIN           14           // GPIO 14 option
   #define WS2812_LEDS          30           // [Pixels] Number of LEDs
-//  #define USE_WS2812
+  #define USE_WS2812
 
 /*********************************************************************************************\
  * Sonoff Touch and Sonoff 4CH

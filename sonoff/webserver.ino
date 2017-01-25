@@ -272,9 +272,9 @@ const char HUE_DESCRIPTION_XML[] PROGMEM =
 const char HUE_LIGHT_STATUS_JSON[] PROGMEM =
   "{\"state\":"
       "{\"on\":{state},"
-      "\"bri\":0,"
-      "\"hue\":0,"
-      "\"sat\":0,"
+      "\"bri\":{b},"
+      "\"hue\":{h},"
+      "\"sat\":{s},"
       "\"effect\":\"none\","
       "\"ct\":0,"
       "\"alert\":\"none\","
@@ -1331,7 +1331,14 @@ void hue_lights(String path)
       if (i < Maxdevice) response += ",\"";
       response.replace("{state}", (power & (0x01 << (i-1))) ? "true" : "false");
       response.replace("{j1}", sysCfg.friendlyname[i-1]);
-      response.replace("{j2}", hue_deviceId(i));  
+      response.replace("{j2}", hue_deviceId(i));
+#ifdef USE_WS2812
+      ws2812_replaceHSB(&response);
+#else
+      response.replace("{h}", "0");
+      response.replace("{s}", "0");
+      response.replace("{b}", "0");
+#endif // USE_WS2812
     }
     response += "}";
     webServer->send(200, "application/json", response);
@@ -1366,6 +1373,13 @@ void hue_lights(String path)
           response += (power & (0x01 << (device-1))) ? "true" : "false";
         }
       }
+#ifdef USE_WS2812
+      if ((tmp=json.indexOf("\"bri\":")) >= 0)
+      {
+        tmp=atoi(json.substring(tmp+6).c_str());
+        ws2812_changeBrightness(tmp);
+      }
+#endif // USE_WS2812
       response += "}}";
       webServer->send(200, "application/json", response);
     }   
@@ -1380,6 +1394,13 @@ void hue_lights(String path)
     response.replace("{state}", (power & (0x01 << (device -1))) ? "true" : "false");
     response.replace("{j1}", sysCfg.friendlyname[device -1]);
     response.replace("{j2}", hue_deviceId(device));
+#ifdef USE_WS2812
+    ws2812_replaceHSB(&response);
+#else
+    response.replace("{h}", "0");
+    response.replace("{s}", "0");
+    response.replace("{b}", "0");
+#endif // USE_WS2812
     webServer->send(200, "application/json", response);
   }
   else webServer->send(406, "application/json", "{}");
