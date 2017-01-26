@@ -168,7 +168,7 @@ void ws2812_changeBrightness(uint8_t bri)
 {
   char rgb[7];
   
-  sysCfg.ws_ledtable=1;                     // Switch on Gamma Correction for "natural" brightness controll
+  //sysCfg.ws_ledtable=1;                     // Switch on Gamma Correction for "natural" brightness controll
   ws2812_setDim(sysCfg.ws_dimmer);
   HsbColor hsb = HsbColor(dcolor);
   if (!bri) bri=1;

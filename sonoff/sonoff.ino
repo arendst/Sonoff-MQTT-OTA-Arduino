@@ -2871,4 +2871,6 @@ void loop()
   if (Serial.available()) serial();
 
   yield();
+
+  delay(1000/STATES/2); // Delay half state loop
 }
