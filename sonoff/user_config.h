@@ -104,7 +104,7 @@
   #define FRIENDLY_NAME4       "Sonoff4"    // [FriendlyName4] Friendlyname up to 32 characters used by Alexa
   #define WEB_SERVER           2            // [WebServer] Web server (0 = Off, 1 = Start as User, 2 = Start as Admin)
 //  #define USE_WEMO_EMULATION                // Enable Belkin WeMo PowerSwitch emulation for Alexa (+4k code, +2k mem)
-//  #define USE_HUE_EMULATION                 // Enable Hue Bridge emulation for Alexa
+  #define USE_HUE_EMULATION                 // Enable Hue Bridge emulation for Alexa
 
 // -- mDNS -----------------------------------
 #define USE_DISCOVERY                       // Enable mDNS for the following services (+8k code, +0.3k mem)
@@ -129,7 +129,7 @@
 #define APP_POWERON_STATE      3            // [PowerOnState] Power On Relay state (0 = Off, 1 = On, 2 = Toggle Saved state, 3 = Saved state)
 #define APP_BLINKTIME          10           // [BlinkTime] Time in 0.1 Sec to blink/toggle power for relay 1
 #define APP_BLINKCOUNT         10           // [BlinkCount] Number of blinks (0 = 32000)
-#define APP_SLEEP              0            // [Sleep] Sleep time to lower energy consumption (0 = Off, 1 - 250 mSec) 
+#define APP_SLEEP              50           // [Sleep] Sleep time to lower energy consumption (0 = Off, 1 - 250 mSec) 
 
 #define TEMP_CONVERSION        0            // Convert temperature to (0 = Celsius or 1 = Fahrenheit)
 #define TEMP_RESOLUTION        1            // Maximum number of decimals (0 - 3) showing sensor Temperature
@@ -182,10 +182,10 @@
 /*-------------------------------------------------------------------------------------------*\
  * WS2812 LED Support
 \*-------------------------------------------------------------------------------------------*/
-//  #define WS2812_PIN           3            // GPIO 03 Serial RX reused due to DMA controlling of LEDs (Fails Serial communication!)
-  #define WS2812_PIN           14           // GPIO 14 option
+  #define WS2812_PIN           3            // GPIO 03 Serial RX reused due to DMA controlling of LEDs (Fails Serial communication!)
+//  #define WS2812_PIN           14           // GPIO 14 option
   #define WS2812_LEDS          30           // [Pixels] Number of LEDs
-//  #define USE_WS2812
+  #define USE_WS2812
 
 /*********************************************************************************************\
  * Sonoff Touch and Sonoff 4CH
