@@ -190,7 +190,8 @@ const char HTTP_END[] PROGMEM =
   "</html>";
 #ifdef USE_WEMO_EMULATION
 const char WEMO_EVENTSERVICE_XML[] PROGMEM =
-  "<?scpd xmlns=\"urn:Belkin:service-1-0\"?>"
+  "<?xml version=\"1.0\"?>"
+  "<scpd xmlns=\"urn:Belkin:service-1-0\">"
   "<actionList>"
     "<action>"
       "<name>SetBinaryState</name>"
@@ -215,6 +216,7 @@ const char WEMO_EVENTSERVICE_XML[] PROGMEM =
         "</stateVariable>"
       "</serviceStateTable>"
     "</action>"
+  "</actionList>"
   "</scpd>\r\n"
   "\r\n";
 const char WEMO_SETUP_XML[] PROGMEM =
@@ -1278,7 +1280,7 @@ void handleUPnPservice()
   addLog_P(LOG_LEVEL_DEBUG, PSTR("HTTP: Handle WeMo event service"));
 
   String eventservice_xml = FPSTR(WEMO_EVENTSERVICE_XML);
-  webServer->send(200, "text/plain", eventservice_xml);
+  webServer->send(200, "text/xml", eventservice_xml);
 }
 
 void handleUPnPsetup()
