@@ -1,0 +1,20 @@
+language: python
+python:
+  - '2.7'
+sudo: false
+cache:
+  directories:
+    - "~/.platformio"
+install:
+    - pip install -U platformio
+
+script:
+    - platformio run
+deploy:
+  provider: releases
+  api_key:
+    secure: trZaUjfjitidddXN5FmeTLQPw9Dr+f9nEEb/T/YTZNRVYce1VgHL3QOKQIBUzgvobsdYdCP3DSO0H0XdiFe5uuTUPkmeYGl/GIM5PdfGRcVrMiw0f+WmzKjS8reP4qXUnDaPd6HDxcWzz6B5Y9r7ILbezELRhUAYpRQzaNzVIObZwgYIXtaH5xt/xyrQhHu4rHErk9ihVjrVRE06hOco7/smo4qPR+Ve98yg0/wwGfW3uBseSFVG6nN3jg00RtIZFdOL7qCwfn0WyuC2ec8OfZzfl0UmArSmycnQvpwRW/T4mnS6gOqyz16kahK7q6wR9/R3jiCBRQlzhl9S7WTok8G6i3+uF6/Wd1h56VDr+ESuig8DClV0XivPdWq0spMEQ0bNJZfcJeQYJDvcFk8vlULDhA5WUF44t9+oS2d1dPwjwPFhu7ne3hDG8F+z3F1yMDvwXqyuFWbwbj5Yq9lE/iVYfj4skHNwHbUry4QbJHMns+DTdXAjnaiaOH9lxlh0kphlLlLPD7qPvNscHpe0liQsld9s36noF3W7MC+4YaCEfC11ltltrIQayey/RaXAzUreZdKWlU9pZKFYF1KKwyvMj9WfK/vILZweLApXVPs1Pxz3A8+gJhaGO8tB8ytRKddgvSMlkmh5cG7jd3zcEsnKGvkauofhWzZRodBDk8U=
+  file: ".pioenvs/sonoff/firmware.bin"
+  skip_cleanup: true
+  on:
+    tags: true
