@@ -1188,6 +1188,7 @@ void handleInfo()
   page += F("<style>td{padding:0px 5px;}</style>");
   page += F("<table style'width:100%;'>");
   page += F("<tr><td><b>Program version</b></td><td>"); page += Version; page += F("</td></tr>");
+  page += F("<tr><th>Build Date/Time</th><td>"); page += __DATE__; page += F("/"); page += __TIME__ ; page += F("</td></tr>");
   page += F("<tr><td><b>Core/SDK version</b></td><td>"); page += ESP.getCoreVersion(); page += F("/"); page += String(ESP.getSdkVersion()); page += F("</td></tr>");
 //  page += F("<tr><td><b>Boot version</b></td><td>"); page += String(ESP.getBootVersion()); page += F("</td></tr>");
   page += F("<tr><td><b>Uptime</b></td><td>"); page += String(uptime); page += F(" Hours</td></tr>");
