@@ -951,23 +951,23 @@ void handleUploadDone()
   page.replace("{v}", "Info");
   page += F("<div style='text-align:center;'><b>Upload ");
   if (_uploaderror) {
-    page += F("<font color='red'>failed</font></b>");
+    page += F("<font color='red'>failed</font></b><br/><br/>");
     if (_uploaderror == 1) {
-      page += F("<br/><br/>No file selected");
+      page += F("No file selected");
     } else if (_uploaderror == 2) {
-      page += F("<br/><br/>File size is larger than available free space");
+      page += F("File size is larger than available free space");
     } else if (_uploaderror == 3) {
-      page += F("<br/><br/>File magic header does not start with 0xE9");
+      page += F("File magic header does not start with 0xE9");
     } else if (_uploaderror == 4) {
-      page += F("<br/><br/>File flash size is larger than device flash size");
+      page += F("File flash size is larger than device flash size");
     } else if (_uploaderror == 5) {
-      page += F("<br/><br/>File upload buffer miscompare");
+      page += F("File upload buffer miscompare");
     } else if (_uploaderror == 6) {
-      page += F("<br/><br/>Upload failed. Enable logging option 3 for more information");
+      page += F("Upload failed. Enable logging option 3 for more information");
     } else if (_uploaderror == 7) {
-      page += F("<br/><br/>Upload aborted");
+      page += F("Upload aborted");
     } else {
-      page += F("<br/><br/>Upload error code ");
+      page += F("Upload error code ");
       page += String(_uploaderror);
     }
     if (Update.hasError()) {
@@ -1224,7 +1224,27 @@ void handleInfo()
   page += F("<tr><td><b>MQTT Group Topic</b></td><td>"); page += sysCfg.mqtt_grptopic; page += F("</td></tr>");
 #else
   page += F("<tr><td><b>MQTT</b></td><td>Disabled</td></tr>");
-#endif  // USE_MQTT
+#endif // USE_MQTT
+  page += F("<tr><td>&nbsp;</td></tr>");
+  page += F("<tr><td><b>WeMo Emulation</b></td><td>");
+#ifdef USE_WEMO_EMULATION
+  page += F("Enabled");
+#else
+  page += F("Disabled");
+#endif // USE_WEMO_EMULATION
+  page += F("<tr><td><b>mDNS Discovery</b></td><td>");
+#ifdef USE_DISCOVERY
+  page += F("Enabled");
+#else
+  page += F("Disabled");
+#endif // USE_DISCOVERY
+  page += F("<tr><td><b>mDNS Webserver Advertise</b></td><td>");
+#ifdef WEBSERVER_ADVERTISE
+  page += F("Enabled");
+#else
+  page += F("Disabled");
+#endif // WEBSERVER_ADVERTISE
+  page += F("</td></tr>");
   page += F("<tr><td>&nbsp;</td></tr>");
   page += F("<tr><td><b>ESP Chip id</b></td><td>"); page += String(ESP.getChipId()); page += F("</td></tr>");
   page += F("<tr><td><b>Flash Chip id</b></td><td>"); page += String(ESP.getFlashChipId()); page += F("</td></tr>");
