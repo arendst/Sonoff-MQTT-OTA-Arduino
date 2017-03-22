@@ -1046,6 +1046,12 @@ void mqtt_reconnect()
       addLog_P(LOG_LEVEL_DEBUG, PSTR("MQTT: WARNING - Insecure connection due to invalid Fingerprint"));
     }
 #endif  // USE_MQTT_TLS
+#ifdef USE_DISCOVERY
+#ifdef MQTT_HOST_DISCOVERY
+    mdns_discoverMQTTServer();
+#endif  // MQTT_HOST_DISCOVERY
+#endif  // USE_DISCOVERY
+    mqttClient.setServer(sysCfg.mqtt_host, sysCfg.mqtt_port);
     mqttClient.setCallback(mqttDataCb);
     mqttflag = 1;
     mqttcounter = 1;
