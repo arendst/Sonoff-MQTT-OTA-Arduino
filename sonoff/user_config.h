@@ -9,11 +9,12 @@
 \*********************************************************************************************/
 
 // Enable only one out of five MODULE defines below
-#define MODULE                 SONOFF            // Sonoff Basic, Sonoff RF, Sonoff SV, Sonoff Dual, Sonoff TH, S20 Smart Socket
+//#define MODULE                 SONOFF            // Sonoff Basic, Sonoff RF, Sonoff SV, Sonoff Dual, Sonoff TH, S20 Smart Socket
 //#define MODULE                 SONOFF_2          // Sonoff Touch, Sonoff 4CH
-//#define MODULE                 SONOFF_POW        // Sonoff Pow
+#define MODULE                 SONOFF_POW        // Sonoff Pow
 //#define MODULE                 MOTOR_CAC         // iTead Motor Clockwise/Anticlockwise
 //#define MODULE                 ELECTRO_DRAGON    // Electro Dragon Wifi IoT Relay Board Based on ESP8266
+
 
 // -- Project --------------------------------
 #define PROJECT                "sonoff"     // PROJECT is used as the default topic delimiter and OTA file name
@@ -396,3 +397,7 @@
   #error "Select either USE_WALL_SWITCH or SEND_TELEMETRY_I2C or use different GPIOs"
 #endif
 #endif
+
+// Service discovery (mDNS)
+#define USE_DISCOVERY
+
