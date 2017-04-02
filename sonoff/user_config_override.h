@@ -14,10 +14,14 @@
 //#ifdef CFG_HOLDER
 //#undef CFG_HOLDER
 //#endif
-//#define CFG_HOLDER             0x20161210
+//#define CFG_HOLDER             0x20170101
 
-//#ifdef STA_SSID1
-//#undef STA_SSID1
-//#endif
-//#define STA_SSID1              "yourssid1"
+#ifdef STA_SSID1
+#undef STA_SSID1
+#endif
+#define STA_SSID1              "krupp.net"
 
+#ifdef STA_PASS1
+#undef STA_PASS1
+#endif
+#define STA_PASS1              ""

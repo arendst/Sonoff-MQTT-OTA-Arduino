@@ -461,7 +461,6 @@ void CFG_DefaultSet()
   sysCfg.timezone = APP_TIMEZONE;
   strlcpy(sysCfg.otaUrl, OTA_URL, sizeof(sysCfg.otaUrl));
   strlcpy(sysCfg.ex_friendlyname, FRIENDLY_NAME1, sizeof(sysCfg.ex_friendlyname));
-
   sysCfg.seriallog_level = SERIAL_LOG_LEVEL;
   sysCfg.sta_active = 0;
   strlcpy(sysCfg.sta_ssid[0], STA_SSID1, sizeof(sysCfg.sta_ssid[0]));
@@ -692,6 +691,12 @@ void CFG_Delta()
     if (sysCfg.version < 0x03011000) {  // 3.1.16 - Add parameter
       getClient(sysCfg.ex_friendlyname, sysCfg.mqtt_client, sizeof(sysCfg.ex_friendlyname));
     }
+    if (sysCfg.version < 0x03011100) {  // 3.1.17 - Add parameter
+      getClient(sysCfg.friendlyname[1], FRIENDLY_NAME2, sizeof(sysCfg.friendlyname[1]));
+      getClient(sysCfg.friendlyname[2], FRIENDLY_NAME3, sizeof(sysCfg.friendlyname[2]));
+      getClient(sysCfg.friendlyname[3], FRIENDLY_NAME4, sizeof(sysCfg.friendlyname[3]));
+    }
+    
     if (sysCfg.version < 0x03020400) {  // 3.2.4 - Add parameter
       sysCfg.ws_pixels = WS2812_LEDS;
       sysCfg.ws_red = 255;
@@ -1914,7 +1919,6 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     if (pin[GPIO_WS2812] < 99) snprintf_P(svalue, sizeof(svalue), PSTR("%s, Pixels, Led, Color, Dimmer, Scheme, Fade, Speed, Width, Wakeup, LedTable"), svalue);
 #endif
     snprintf_P(svalue, sizeof(svalue), PSTR("%s\"}"), svalue);
-
 #ifdef USE_POWERMONITOR
 //    if (sysCfg.message_format != JSON) json2legacy(stopic, svalue);
     mqtt_publish(stopic, svalue);
@@ -2872,7 +2876,6 @@ void loop()
 #ifdef USE_WEBSERVER
   pollDnsWeb();
 #endif  // USE_WEBSERVER
-
 #if defined(USE_WEMO_EMULATION) || defined(USE_HUE_EMULATION)
   pollUDP();
 #endif  // USE_WEMO_EMULATION || USE_HUE_EMULATION

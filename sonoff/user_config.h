@@ -104,7 +104,7 @@
   #define FRIENDLY_NAME4       "Sonoff4"    // [FriendlyName4] Friendlyname up to 32 characters used by Alexa
   #define WEB_SERVER           2            // [WebServer] Web server (0 = Off, 1 = Start as User, 2 = Start as Admin)
 //  #define USE_WEMO_EMULATION                // Enable Belkin WeMo PowerSwitch emulation for Alexa (+4k code, +2k mem)
-//  #define USE_HUE_EMULATION                 // Enable Hue Bridge emulation for Alexa
+  #define USE_HUE_EMULATION                 // Enable Hue Bridge emulation for Alexa
 
 // -- mDNS -----------------------------------
 #define USE_DISCOVERY                       // Enable mDNS for the following services (+8k code, +0.3k mem)
@@ -185,7 +185,7 @@
 //  #define WS2812_PIN           3            // GPIO 03 Serial RX reused due to DMA controlling of LEDs (Fails Serial communication!)
   #define WS2812_PIN           14           // GPIO 14 option
   #define WS2812_LEDS          30           // [Pixels] Number of LEDs
-//  #define USE_WS2812
+  #define USE_WS2812
 
 /*********************************************************************************************\
  * Sonoff Touch and Sonoff 4CH
@@ -269,6 +269,12 @@
   #define HLW_CF1              13           // GPIO 13 = HLW8012 CF1 voltage / current (Sonoff Pow)
   #define HLW_CF               14           // GPIO 14 = HLW8012 CF power (Sonoff Pow)
   #define SEND_TELEMETRY_ENERGY             // Enable sending energy telemetry
+/*-------------------------------------------------------------------------------------------*\
+ * WD2812 LED Support
+\*-------------------------------------------------------------------------------------------*/
+  #define WS2812_PIN           3            // GPIO 3 Serial RX reused due to DMA controlling of LEDs
+  #define WS2812_LEDS         30            // Number of LEDs
+  #define WS2812_LED_SUPPORT
 
 /*********************************************************************************************\
  * Motor Clockwise/Anticlockwise
