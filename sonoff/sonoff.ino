@@ -2739,8 +2739,12 @@ void setup()
 #ifdef USE_SPIFFS
   initSpiffs();
 #endif
+#ifdef FORCE_DEFAULT_CFG
+  CFG_Default();
+#else
   CFG_Load();
   CFG_Delta();
+#endif
 
   if (!sysCfg.model) {
     sysCfg.model = SONOFF;

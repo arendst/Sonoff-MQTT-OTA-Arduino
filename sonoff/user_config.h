@@ -22,6 +22,7 @@
 #define CFG_HOLDER             0x20161209   // [Reset 1] Change this value to load following default configuration parameters
 #define SAVE_DATA              1            // [SaveData] Save changed parameters to Flash (0 = disable, 1 - 3600 seconds)
 #define SAVE_STATE             1            // [SaveState] Save changed power state to Flash (0 = disable, 1 = enable)
+//#define FORCE_DEFAULT_CFG                 // [ForceDefaultCfg] Ignore previous configuration and initialize to defaults
 
 // -- Wifi -----------------------------------
 #define STA_SSID1              "indebuurt1"      // [Ssid1] Wifi SSID
