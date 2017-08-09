@@ -157,14 +157,15 @@ typedef void (*rtcCallback)();
 extern "C" uint32_t _SPIFFS_start;
 extern "C" uint32_t _SPIFFS_end;
 
-#define MAX_BUTTON_COMMANDS    5            // Max number of button commands supported
+#define MAX_BUTTON_COMMANDS    6            // Max number of button commands supported
 
 const char commands[MAX_BUTTON_COMMANDS][14] PROGMEM = {
   {"wificonfig 1"},   // Press button three times
   {"wificonfig 2"},   // Press button four times
   {"wificonfig 3"},   // Press button five times
   {"restart 1"},      // Press button six times
-  {"upgrade 1"}};     // Press button seven times
+  {"upgrade 1"},     // Press button seven times
+  {"identify"}};     // Press button eight times
 
 const char wificfg[5][12] PROGMEM = { "Restart", "Smartconfig", "Wifimanager", "WPSconfig", "Retry" };
 
@@ -1229,6 +1230,10 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
     else if (!strcmp(type,"STATUS")) {
       if ((data_len == 0) || (payload < 0) || (payload > MAX_STATUS)) payload = 99;
       publish_status(payload);
+      return;
+    }
+    else if (!strcmp(type,"IDENTIFY")) {
+      do_cmnd_identify();
       return;
     }
 #if (MODULE != MOTOR_CAC)
