@@ -861,6 +861,40 @@ unsigned long getKeyIntValue(const char *json, const char *key)
 #endif  // USE_DOMOTICZ
 #endif  // USE_MQTT
 
+// Function to parse & check if version_str is newer than our currently installed version.
+bool newerVersion(char* version_str)
+{
+  uint32_t version = 0;
+  uint8_t i = 0;
+  char *str_ptr;
+  char* version_dup = strdup(version_str);  // Duplicate the version_str as strtok_r will modify it.
+  if (!version_dup) return false;  // Bail if we can't duplicate. Assume bad.
+
+  // Loop through the version string, splitting on '.' seperators.
+  for(char *str = strtok_r(version_dup, ".", &str_ptr); str && i < sizeof(VERSION) + 1; str = strtok_r(NULL, ".", &str_ptr), i++) {
+    int field = atoi(str);
+    // The fields in a version string can only range from 0-255.
+    if (field < 0 || field > 255) {
+      free(version_dup);
+      return false;
+    }
+    // Shuffle the accumulated bytes across, and add the new byte.
+    version = (version << 8) + field;
+  }
+  free(version_dup);  // We no longer need this.
+  // A version string should have 2-4 fields. e.g. 1.2.3, or 1.2, or 1.2.3.4.
+  // If not, then don't consider it a valid version string.
+  if (i < 2 || i > sizeof(VERSION)) return false;
+  // Keep shifting the parsed version until we hit the maximum number of tokens.
+  // VERSION stores the major number of the version in the most significant byte of the uint32_t.
+  while (i < sizeof(VERSION)) {
+    version <<= 8;
+    i++;
+  }
+  // Now we should have a fully constructed version number in uint32_t form.
+  return (version > VERSION);
+}
+
 /********************************************************************************************/
 
 void mqtt_publish_sec(const char* topic, const char* data, boolean retained)
@@ -1297,11 +1331,19 @@ void mqttDataCb(char* topic, byte* data, unsigned int data_len)
       snprintf_P(svalue, sizeof(svalue), PSTR("{\"Sleep\":\"%d%s\"}"), sysCfg.sleep, (sysCfg.mqtt_units) ? " mS" : "");
     }
     else if (!strcmp(type,"UPGRADE") || !strcmp(type,"UPLOAD")) {
-      if ((data_len > 0) && (payload == 1)) {
+      // Check if the payload is numerically 1, and had no trailing chars.
+      // e.g. "1foo" or "1.2.3" could fool us.
+      if (data_len == 1 && payload == 1) {
         otaflag = 3;
         snprintf_P(svalue, sizeof(svalue), PSTR("{\"Upgrade\":\"Version %s from %s\"}"), Version, sysCfg.otaUrl);
+      }
+      // Check if the version we have been asked to upgrade to is higher than our current version.
+      // We also need at least 3 chars to make a valid version number string.
+      else if (data_len >= 3 && newerVersion(dataBuf)) {
+        otaflag = 3;
+        snprintf_P(svalue, sizeof(svalue), PSTR("{\"Upgrade\":\"Version %s to %s from %s\"}"), Version, dataBuf, sysCfg.otaUrl);
       } else {
-        snprintf_P(svalue, sizeof(svalue), PSTR("{\"Upgrade\":\"Option 1 to upgrade\"}"));
+        snprintf_P(svalue, sizeof(svalue), PSTR("{\"Upgrade\":\"Option 1 or >%s to upgrade\"}"), Version);
       }
     }
     else if (!strcmp(type,"OTAURL")) {
